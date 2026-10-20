@@ -1,0 +1,398 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wilds Build Forge</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
+<style>
+	/* Layout: one working column on phones; on wide screens the wish list sits left
+	   and the found sets right, like the smithy screen in the game. */
+	:root {
+		--bg: #eceef1;
+		--panel: #ffffff;
+		--panel-2: #f5f6f8;
+		--line: #d5d9df;
+		--fg: #1c2128;
+		--muted: #5a6370;
+		--brass: #8f6510;
+		--brass-soft: #f3e7cc;
+		--on-brass: #ffffff;
+		--armor: #8f6510;
+		--weapon: #2f6aa8;
+		--set: #b4502c;
+		--group: #6c4fb0;
+		--good: #2e7d3a;
+		--warn: #a86400;
+		--font-display: "Marcellus", "Palatino Linotype", Georgia, serif;
+		--font-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+		--font-label: "Barlow Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+		--radius: 10px;
+		color-scheme: light;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root:not([data-theme="light"]) {
+			--bg: #12151a;
+			--panel: #1a1e25;
+			--panel-2: #20252d;
+			--line: #2e343e;
+			--fg: #ebe6db;
+			--muted: #9aa1ab;
+			--brass: #d9ad52;
+			--brass-soft: #3a3020;
+			--on-brass: #1a1407;
+			--armor: #d9ad52;
+			--weapon: #79aee6;
+			--set: #e88f6c;
+			--group: #b59cf0;
+			--good: #7cc786;
+			--warn: #e8b058;
+			color-scheme: dark;
+		}
+	}
+	:root[data-theme="dark"] {
+		--bg: #12151a;
+		--panel: #1a1e25;
+		--panel-2: #20252d;
+		--line: #2e343e;
+		--fg: #ebe6db;
+		--muted: #9aa1ab;
+		--brass: #d9ad52;
+		--brass-soft: #3a3020;
+		--on-brass: #1a1407;
+		--armor: #d9ad52;
+		--weapon: #79aee6;
+		--set: #e88f6c;
+		--group: #b59cf0;
+		--good: #7cc786;
+		--warn: #e8b058;
+		color-scheme: dark;
+	}
+
+	* { box-sizing: border-box; }
+	/* Hidden things stay hidden even when a class gives them display: grid. */
+	[hidden] { display: none !important; }
+	body {
+		background: var(--bg);
+		color: var(--fg);
+		font-family: var(--font-body);
+		font-size: 16px;
+		line-height: 1.45;
+		padding-left: max(16px, env(safe-area-inset-left, 0px));
+		padding-right: max(16px, env(safe-area-inset-right, 0px));
+		padding-block: 20px 48px;
+	}
+	.page { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+
+	h1, h2, h3 { font-family: var(--font-display); font-weight: 400; text-wrap: balance; margin: 0; }
+	h1 { font-size: clamp(1.9rem, 5vw, 2.6rem); letter-spacing: 0.01em; }
+	h2 { font-size: 1.35rem; }
+	h3 { font-size: 1.1rem; }
+	p { margin: 0; }
+	a { color: var(--brass); }
+	.muted { color: var(--muted); }
+	.label {
+		font-family: var(--font-label);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		font-size: 0.78rem;
+		color: var(--muted);
+	}
+
+	/* ---------- Header and tabs ---------- */
+	header { display: grid; gap: 6px; }
+	header .lead { color: var(--muted); max-width: 60ch; }
+	.tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+	.tab {
+		font: 600 1rem var(--font-body);
+		background: none;
+		border: none;
+		color: var(--muted);
+		padding: 10px 14px;
+		border-bottom: 3px solid transparent;
+		cursor: pointer;
+	}
+	.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--brass); }
+	.tab:hover { color: var(--fg); }
+
+	button { font-family: var(--font-body); }
+	button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
+		outline: 2px solid var(--brass);
+		outline-offset: 2px;
+	}
+	.btn {
+		font: 600 0.95rem var(--font-body);
+		border: 1px solid var(--line);
+		background: var(--panel-2);
+		color: var(--fg);
+		border-radius: 8px;
+		padding: 8px 14px;
+		cursor: pointer;
+		text-decoration: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.btn:hover { border-color: var(--brass); }
+	.btn.primary { background: var(--brass); color: var(--on-brass); border-color: var(--brass); }
+	.btn.small { padding: 4px 10px; font-size: 0.85rem; }
+	.linkish {
+		background: none; border: none; padding: 0; color: var(--brass);
+		font: 500 0.9rem var(--font-body); cursor: pointer; text-decoration: underline;
+	}
+
+	/* ---------- Build tab layout ---------- */
+	.build-grid { display: grid; gap: 20px; align-items: start; }
+	@media (min-width: 960px) {
+		.build-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+	}
+	.panel {
+		background: var(--panel);
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
+		padding: 18px;
+		display: grid;
+		gap: 14px;
+		min-width: 0;
+	}
+	.step-title { display: flex; align-items: baseline; gap: 10px; }
+	.step-num {
+		font-family: var(--font-label); font-weight: 600; color: var(--brass);
+		font-size: 0.9rem; letter-spacing: 0.08em;
+	}
+
+	/* Search box with suggestions */
+	.search { position: relative; }
+	.search input {
+		width: 100%;
+		font: 500 1rem var(--font-body);
+		padding: 11px 12px;
+		border-radius: 8px;
+		border: 1px solid var(--line);
+		background: var(--panel-2);
+		color: var(--fg);
+	}
+	.suggestions {
+		position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 5;
+		background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+		box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+		list-style: none; margin: 0; padding: 4px; max-height: 320px; overflow-y: auto;
+	}
+	.suggestions li button {
+		width: 100%; text-align: left; background: none; border: none; color: var(--fg);
+		padding: 8px 10px; border-radius: 6px; cursor: pointer; display: grid; gap: 2px;
+		font: 500 0.98rem var(--font-body);
+	}
+	.suggestions li button:hover, .suggestions li button.active { background: var(--panel-2); }
+	.suggestions .sub { font-size: 0.82rem; color: var(--muted); }
+
+	.quick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+	.chip-btn {
+		font: 500 0.88rem var(--font-body);
+		border: 1px dashed var(--line); background: none; color: var(--fg);
+		border-radius: 999px; padding: 4px 11px; cursor: pointer;
+	}
+	.chip-btn:hover { border-color: var(--brass); border-style: solid; }
+
+	/* Kind tags: armor, weapon, set bonus, group skill */
+	.kind {
+		font-family: var(--font-label); font-weight: 600; font-size: 0.72rem;
+		text-transform: uppercase; letter-spacing: 0.07em;
+		border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; white-space: nowrap;
+	}
+	.kind.armor { color: var(--armor); }
+	.kind.weapon { color: var(--weapon); }
+	.kind.set { color: var(--set); }
+	.kind.group { color: var(--group); }
+
+	/* Wish list rows */
+	.wishes { display: grid; gap: 8px; }
+	.wish {
+		border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+		display: grid; gap: 8px; background: var(--panel-2);
+	}
+	/* Name and tag on the left (may wrap), the remove button always top right. */
+	.wish-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+	.wish-title { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; min-width: 0; }
+	.wish-name { font-weight: 600; font-size: 1.02rem; }
+	.remove {
+		background: none; border: none; color: var(--muted); cursor: pointer;
+		font-size: 1.3rem; line-height: 1; padding: 2px 6px; border-radius: 6px;
+	}
+	.remove:hover { color: var(--fg); background: var(--panel); }
+	.level-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+	.level-text { font-size: 0.88rem; color: var(--muted); min-width: 0; }
+
+	/* Skill level pips, like the squares on the in-game skill list */
+	.pips { display: inline-flex; gap: 4px; }
+	.pip {
+		width: 22px; height: 22px; border-radius: 4px; cursor: pointer;
+		border: 1.5px solid var(--brass); background: transparent; padding: 0;
+	}
+	.pip.on { background: var(--brass); }
+	.pips.static .pip { width: 9px; height: 9px; border-radius: 2px; cursor: default; border-width: 1px; }
+	.steps { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+	.step {
+		font: 500 0.85rem var(--font-body); border: 1.5px solid var(--set); color: var(--fg);
+		background: transparent; border-radius: 6px; padding: 3px 9px; cursor: pointer;
+	}
+	.step.group { border-color: var(--group); }
+	.step.on { background: var(--set); color: var(--on-brass); }
+	.step.group.on { background: var(--group); }
+
+	.where { border-top: 1px dashed var(--line); padding-top: 8px; display: grid; gap: 8px; font-size: 0.92rem; }
+	.where ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+	.where .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+	.options { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+	.option { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 0.94rem; }
+	.option select {
+		font: 500 0.94rem var(--font-body); padding: 6px 8px; border-radius: 6px;
+		border: 1px solid var(--line); background: var(--panel-2); color: var(--fg);
+	}
+	.option input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--brass); }
+	.hint { font-size: 0.85rem; color: var(--muted); }
+
+	/* Jewel slot badges: a small diamond with the slot level inside */
+	.slots { display: inline-flex; gap: 3px; vertical-align: middle; }
+	.slot {
+		width: 20px; height: 20px; display: inline-grid; place-items: center;
+		font: 600 0.72rem var(--font-label); color: var(--muted);
+		border: 1.5px solid var(--muted); border-radius: 50%;
+	}
+	.slot.s3 { color: var(--brass); border-color: var(--brass); }
+	.slot.none { border-style: dotted; opacity: 0.5; }
+
+	/* ---------- Results ---------- */
+	.status { font-size: 0.95rem; }
+	.status.warn { color: var(--warn); }
+	.results { display: grid; gap: 12px; }
+	.result {
+		border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2);
+		padding: 14px; display: grid; gap: 12px; min-width: 0;
+	}
+	.result.best { border-color: var(--brass); }
+	.result-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+	.result-head .facts { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.9rem; color: var(--muted); }
+	.result-head .facts b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+	.badge-best {
+		font: 600 0.72rem var(--font-label); letter-spacing: 0.08em; text-transform: uppercase;
+		background: var(--brass); color: var(--on-brass); border-radius: 4px; padding: 1px 6px;
+	}
+	.pieces { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+	.pieces td { padding: 5px 6px 5px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+	.pieces tr:first-child td { border-top: none; }
+	.pieces .slot-kind { width: 4.2em; }
+	.pieces .slot-cell { text-align: right; white-space: nowrap; }
+	.piece-name { font-weight: 500; }
+	.jewel-list { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.93rem; align-items: center; }
+	.jewel { display: inline-flex; gap: 5px; align-items: center; }
+	.note {
+		font-size: 0.9rem; border-left: 3px solid var(--warn); padding: 4px 10px;
+		background: var(--panel); border-radius: 0 6px 6px 0;
+	}
+	.skill-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+	.skill-chip {
+		display: inline-flex; gap: 6px; align-items: center; font-size: 0.86rem;
+		border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; background: var(--panel);
+	}
+	.skill-chip.wanted { border-color: var(--brass); }
+	.skill-chip .lv { font: 600 0.8rem var(--font-label); color: var(--muted); font-variant-numeric: tabular-nums; }
+	details.more summary { cursor: pointer; color: var(--brass); font-weight: 500; font-size: 0.92rem; }
+	details.more[open] summary { margin-bottom: 8px; }
+
+	.weapon-box { display: grid; gap: 8px; }
+	.online { display: flex; flex-wrap: wrap; gap: 8px; }
+
+	/* ---------- Popular tab ---------- */
+	.popular-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+	.pop {
+		background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+		padding: 16px; display: grid; gap: 10px; align-content: start;
+	}
+	.pop .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+
+	footer { font-size: 0.85rem; color: var(--muted); display: grid; gap: 4px; }
+
+	@media (prefers-reduced-motion: no-preference) {
+		.result { animation: rise 0.25s ease-out both; }
+		@keyframes rise { from { transform: translateY(4px); } to { transform: none; } }
+	}
+</style>
+
+<div class="page">
+	<header>
+		<span class="label">Monster Hunter Wilds</span>
+		<h1>Wilds Build Forge</h1>
+		<p class="lead">Pick the skills you want. The forge finds armor, a charm and jewels that reach them.</p>
+	</header>
+
+	<nav class="tabs" role="tablist">
+		<button class="tab" id="tab-build" role="tab" aria-selected="true" data-tab="build">Make a build</button>
+		<button class="tab" id="tab-popular" role="tab" aria-selected="false" data-tab="popular">Popular builds</button>
+	</nav>
+
+	<main id="view-build" class="build-grid">
+		<section class="panel" aria-labelledby="wish-title">
+			<div class="step-title"><span class="step-num">STEP 1</span><h2 id="wish-title">Skills you want</h2></div>
+
+			<div class="search">
+				<input id="skill-search" type="search" autocomplete="off" placeholder="Type a skill, e.g. Heroics or Guts" aria-label="Find a skill">
+				<ul id="suggestions" class="suggestions" hidden></ul>
+			</div>
+			<div class="quick" id="quick-picks"></div>
+
+			<div class="wishes" id="wishes"></div>
+
+			<div class="options">
+				<div class="option">
+					<label for="weapon-slots">Weapon jewel slots</label>
+					<select id="weapon-slots">
+						<option value="3,3,3">3 · 3 · 3 (Artian or Gogma weapon)</option>
+						<option value="3,3,1">3 · 3 · 1</option>
+						<option value="3,2,1">3 · 2 · 1</option>
+						<option value="3,2">3 · 2</option>
+						<option value="">No weapon jewels</option>
+					</select>
+				</div>
+				<div class="option">
+					<input type="checkbox" id="gogma">
+					<label for="gogma">I have a Gogma Artian weapon</label>
+				</div>
+				<p class="hint">A Gogma Artian weapon counts as one extra piece for one set bonus and one group skill. That makes some top builds possible with only five armor pieces.</p>
+			</div>
+		</section>
+
+		<section class="panel" aria-labelledby="found-title">
+			<div class="step-title"><span class="step-num">STEP 2</span><h2 id="found-title">Sets that work</h2></div>
+			<p id="status" class="status" aria-live="polite"></p>
+			<div id="weapon-box" class="weapon-box"></div>
+			<div id="results" class="results"></div>
+			<div id="more-results"></div>
+
+			<div class="weapon-box">
+				<span class="label">See what other hunters build</span>
+				<div class="online" id="online-links"></div>
+			</div>
+		</section>
+	</main>
+
+	<main id="view-popular" hidden>
+		<div style="display:grid; gap:14px">
+			<p class="muted" id="popular-intro"></p>
+			<div class="popular-grid" id="popular-grid"></div>
+			<p class="muted" id="popular-sources"></p>
+		</div>
+	</main>
+
+	<footer>
+		<span id="data-note"></span>
+		<span>Fan-made tool. Not affiliated with Capcom.</span>
+	</footer>
+</div>
+
+<script src="data.js"></script>
+<script src="solver.js"></script>
+<script src="builds.js"></script>
+<script src="app.js"></script>
