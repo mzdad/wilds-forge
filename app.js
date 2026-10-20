@@ -6,8 +6,11 @@
 
 	const data = window.WILDS_DATA;
 	const popular = window.WILDS_POPULAR;
+	const effects = window.WILDS_EFFECTS;
 	const Solver = window.WildsSolver;
+	const Stats = window.WildsStats;
 	const index = Solver.makeIndex(data);
+	const SITUATION_LABEL = Object.fromEntries(effects.situations.map((s) => [s.id, s.label]));
 
 	const STORAGE_KEY = "wilds-build-forge-v1";
 	const RESULTS_SHOWN_AT_FIRST = 3;
@@ -26,6 +29,8 @@
 		targets: [], // [{ skillId, level }]
 		weaponSlots: [3, 3, 3],
 		gogmaWeapon: true,
+		weaponAffinity: 0, // the weapon's own affinity in %, added to the skills
+		situations: effects.defaultSituations.slice(), // fight situations switched on
 		openInfo: null, // skill id whose "where to get it" is open
 		showAll: false,
 	};
@@ -101,6 +106,8 @@
 				targets: state.targets,
 				weaponSlots: state.weaponSlots,
 				gogmaWeapon: state.gogmaWeapon,
+				weaponAffinity: state.weaponAffinity,
+				situations: state.situations,
 			}));
 		} catch (error) {
 			// Storage can be blocked (private window). The page still works, it just forgets.
@@ -119,11 +126,16 @@
 			state.targets = saved.targets.filter((t) => index.skillById.has(t.skillId));
 			state.weaponSlots = Array.isArray(saved.weaponSlots) ? saved.weaponSlots : [3, 3, 3];
 			state.gogmaWeapon = saved.gogmaWeapon !== false;
+			state.weaponAffinity = Number(saved.weaponAffinity) || 0;
+			if (Array.isArray(saved.situations)) {
+				state.situations = saved.situations.filter((id) => SITUATION_LABEL[id]);
+			}
 		} else {
 			// First visit: start with the example from the original idea.
 			const heroics = skillByName("Heroics");
 			if (heroics) {
 				state.targets = [{ skillId: heroics.id, level: Solver.maxLevel(heroics) }];
+				switchOnSituationFor(heroics);
 			}
 		}
 	}
@@ -139,8 +151,28 @@
 		if (!state.targets.some((t) => t.skillId === skill.id)) {
 			state.targets.push({ skillId: skill.id, level: defaultLevel(skill) });
 		}
+		switchOnSituationFor(skill);
 		state.showAll = false;
 		changed();
+	}
+
+	// Wanting Heroics means you plan to fight at low health, so show the numbers for that.
+	// Only the skill's main situation is switched on (for Weakness Exploit: weak points, not wounds).
+	function switchOnSituationFor(skill) {
+		const parts = effects.skills[skill.name];
+		if (!parts || parts[0].when === "always") {
+			return;
+		}
+		switchSituationOn(parts[0].when);
+	}
+
+	// Some situations cannot happen together (full health and low health), so switching
+	// one on switches the others off.
+	function switchSituationOn(id) {
+		const situation = effects.situations.find((s) => s.id === id);
+		const excludes = (situation && situation.excludes) || [];
+		state.situations = state.situations.filter((other) => !excludes.includes(other) && other !== id);
+		state.situations.push(id);
 	}
 
 	function removeSkill(skillId) {
@@ -428,6 +460,15 @@
 		changed();
 	});
 
+	// Weapon affinity only changes the numbers, not which armor fits, so no new search.
+	const affinityInput = document.getElementById("weapon-affinity");
+	affinityInput.addEventListener("input", () => {
+		const value = Number(affinityInput.value);
+		state.weaponAffinity = Number.isFinite(value) ? Math.max(-100, Math.min(100, value)) : 0;
+		save();
+		renderResults();
+	});
+
 	// ---------- Step 2: searching and showing sets ----------
 
 	let searchTimer = null;
@@ -462,6 +503,7 @@
 		list.replaceChildren();
 		more.replaceChildren();
 		weaponBox.replaceChildren();
+		document.getElementById("situations").replaceChildren();
 
 		if (!lastAnswer) {
 			status.className = "status muted";
@@ -485,7 +527,15 @@
 		renderWeapon(weaponBox, answer.weapon);
 
 		const shown = state.showAll ? answer.results : answer.results.slice(0, RESULTS_SHOWN_AT_FIRST);
-		shown.forEach((result, i) => list.appendChild(resultCard(result, i, answer.weapon)));
+		const visible = visibleSituations(shown, answer.weapon);
+		// A switch that is not on screen must not change anything, so only count visible ones.
+		const situationsOn = new Set(state.situations.filter((id) => visible.has(id)));
+		renderSituations(document.getElementById("situations"), visible);
+
+		shown.forEach((result, i) => {
+			const analysis = analyseSet(result, answer.weapon, situationsOn);
+			list.appendChild(resultCard(analysis, i));
+		});
 
 		if (count > RESULTS_SHOWN_AT_FIRST) {
 			more.appendChild(el("button", {
@@ -523,7 +573,190 @@
 		}
 	}
 
-	function resultCard(result, position, weapon) {
+	// ---------- Step 2: fight situations and damage numbers ----------
+
+	// Situations worth a switch: the common ones, the ones your wished skills
+	// are built for, and the ones the shown sets' skills use.
+	function visibleSituations(results, weapon) {
+		const visible = new Set(effects.alwaysShown.concat(effects.defaultSituations));
+		for (const target of state.targets) {
+			const skill = index.skillById.get(target.skillId);
+			for (const part of effects.skills[skill.name] || []) {
+				if (part.when !== "always") {
+					visible.add(part.when);
+				}
+			}
+		}
+		for (const result of results) {
+			const levels = new Map(Solver.totalSkills(index, result, weapon).map((e) => [e.skill.id, e.level]));
+			for (const id of Stats.situationsUsed(index, effects, levels)) {
+				visible.add(id);
+			}
+		}
+		return visible;
+	}
+
+	function renderSituations(box, visible) {
+		box.appendChild(el("span", { class: "label", text: "Fight situation" }));
+		box.appendChild(el("p", { class: "hint", text: "Tap to switch on or off. The damage numbers and smart jewels below follow." }));
+		const row = el("div", { class: "situation-row" });
+		for (const situation of effects.situations) {
+			if (!visible.has(situation.id)) {
+				continue;
+			}
+			const on = state.situations.includes(situation.id);
+			row.appendChild(el("button", {
+				type: "button",
+				class: "situation" + (on ? " on" : ""),
+				"aria-pressed": on ? "true" : "false",
+				text: situation.label,
+				onclick: () => {
+					if (on) {
+						state.situations = state.situations.filter((id) => id !== situation.id);
+					} else {
+						switchSituationOn(situation.id);
+					}
+					save();
+					renderResults();
+				},
+			}));
+		}
+		box.appendChild(row);
+	}
+
+	// Weapon slots the wish-list jewels leave empty.
+	function freeWeaponSlots(weapon) {
+		const used = [];
+		for (const entry of weapon.jewels) {
+			for (let n = 0; n < entry.count; n++) {
+				used.push(entry.deco.slot);
+			}
+		}
+		return Solver.fitJewels(used, state.weaponSlots) || [];
+	}
+
+	// Everything one set card needs: skill levels, numbers before and after smart jewels.
+	function analyseSet(result, weapon, situationsOn) {
+		const totals = Solver.totalSkills(index, result, weapon).filter((e) => e.level > 0);
+		const levels = new Map(totals.map((e) => [e.skill.id, e.level]));
+		return {
+			result: result,
+			totals: totals,
+			before: Stats.computeStats(index, effects, levels, situationsOn, state.weaponAffinity),
+			smart: Stats.suggestJewels(index, effects, levels, result.freeSlots, freeWeaponSlots(weapon), situationsOn, state.weaponAffinity),
+		};
+	}
+
+	function percent(fraction) {
+		return (fraction >= 0 ? "+" : "") + Math.round(fraction * 100) + "%";
+	}
+
+	function attackText(stats) {
+		const parts = [];
+		if (stats.attack) {
+			parts.push("+" + stats.attack);
+		}
+		if (stats.attackPct) {
+			parts.push("+" + stats.attackPct + "%");
+		}
+		return parts.length ? parts.join(" & ") : "+0";
+	}
+
+	function statTile(label, value, sub) {
+		return el("div", { class: "stat" }, [
+			el("span", { class: "label", text: label }),
+			el("span", { class: "stat-value", text: value }),
+			sub ? el("span", { class: "stat-sub", text: sub }) : null,
+		]);
+	}
+
+	function statTiles(stats) {
+		let affinitySub = state.weaponAffinity ? "includes weapon " + state.weaponAffinity + "%" : "";
+		if (stats.affinity > 100) {
+			affinitySub = stats.affinity + "% total, the game stops at 100%";
+		}
+		return el("div", { class: "stat-tiles" }, [
+			statTile("Affinity (crit chance)", stats.affinityShown + "%", affinitySub),
+			statTile("Crit hits", "+" + stats.critDamage + "%", stats.critDamage > Stats.BASE_CRIT_DAMAGE ? "normal is +25%" : "normal crit"),
+			statTile("Attack", attackText(stats), "from skills"),
+			statTile("Raw damage", percent(stats.damageGain), "compared to no skills"),
+		]);
+	}
+
+	function effectText(line) {
+		const parts = [];
+		if (line.attack) {
+			parts.push("+" + line.attack + " attack");
+		}
+		if (line.attackPct) {
+			parts.push("+" + line.attackPct + "% attack");
+		}
+		if (line.affinity) {
+			parts.push("+" + line.affinity + "% affinity");
+		}
+		if (line.critDamage) {
+			parts.push("crits +" + line.critDamage + "%");
+		}
+		return parts.join(", ");
+	}
+
+	// One row per skill part: what it adds, and when. Switched-off rows are greyed out.
+	function breakdown(stats) {
+		const rows = stats.lines
+			.filter((line) => effectText(line))
+			.sort((a, b) => Number(b.active) - Number(a.active))
+			.map((line) => el("li", { class: line.active ? "" : "off" }, [
+				el("b", { text: line.skill.name + " " + line.level }),
+				" " + effectText(line) + " · ",
+				el("span", { class: "muted", text: line.when === "always" ? "always" : SITUATION_LABEL[line.when] + (line.active ? "" : " (switched off)") }),
+			]));
+		const children = [rows.length ? el("ul", { class: "lines" }, rows) : el("p", { class: "muted", text: "No skills here change attack or affinity." })];
+		if (stats.uncounted.length) {
+			children.push(el("p", { class: "muted" },
+				"Not in the numbers: " + stats.uncounted.map((s) => s.name).join(", ") +
+				". They do add damage, but the game gives no exact number, it depends on the weapon, or it is element damage."));
+		}
+		children.push(el("p", { class: "muted" },
+			"Raw damage is an estimate for a typical endgame weapon (" + Stats.TYPICAL_WEAPON_ATTACK + " attack). Element damage comes on top."));
+		return children;
+	}
+
+	function levelChange(entry) {
+		return entry.deco.skills.map((pair) => {
+			const skill = index.skillById.get(pair[0]);
+			return skill.name + " " + (entry.from.get(pair[0]) || 0) + " → " + entry.to.get(pair[0]);
+		}).join(", ");
+	}
+
+	function smartJewels(analysis) {
+		const smart = analysis.smart;
+		const children = [];
+		if (smart.picks.length) {
+			// Biggest gain on top, so the most worthwhile jewel is the first one you read.
+			const byGain = smart.picks.slice().sort((a, b) => b.gain - a.gain);
+			children.push(el("ul", { class: "smart-list" }, byGain.map((entry) => el("li", {}, [
+				el("span", { class: "where-tag", text: entry.deco.kind === "weapon" ? "Weapon" : "Armor" }),
+				jewelChip(entry),
+				el("span", { class: "muted", text: levelChange(entry) }),
+				el("span", { class: "gain", text: percent(entry.gain) }),
+			]))));
+		}
+		const left = smart.leftArmorSlots.concat(smart.leftWeaponSlots);
+		if (!smart.picks.length && !left.length) {
+			children.push(el("p", { class: "muted", text: "No free slots left." }));
+		} else if (left.length) {
+			children.push(el("p", { class: "muted" }, [
+				smart.picks.length ? "Still free: " : "Free: ",
+				slotBadges(left.sort((a, b) => b - a)),
+				" Nothing adds damage there in the switched-on situations. Switch on more above, or use them for comfort skills like Divine Blessing or Evade Window.",
+			]));
+		}
+		return children;
+	}
+
+	function resultCard(analysis, position) {
+		const result = analysis.result;
+		const smart = analysis.smart;
 		const wanted = new Set(state.targets.map((t) => t.skillId));
 		const rows = result.pieces.map((piece) => el("tr", {}, [
 			el("td", { class: "slot-kind label", text: PIECE_LABEL[piece.kind] }),
@@ -538,9 +771,16 @@
 			el("td", { class: "slot-cell" }),
 		]));
 
-		const totals = Solver.totalSkills(index, result, weapon)
-			.filter((entry) => entry.level > 0)
-			.sort((a, b) => (wanted.has(b.skill.id) ? 1 : 0) - (wanted.has(a.skill.id) ? 1 : 0) || b.level - a.level);
+		// All skills, counting the smart jewels. Set bonuses keep their piece count.
+		const totals = analysis.totals.map((entry) => Solver.isPieceCountSkill(entry.skill)
+			? entry
+			: { skill: entry.skill, level: smart.levels.get(entry.skill.id) || entry.level });
+		for (const [skillId, level] of smart.levels) {
+			if (!totals.some((entry) => entry.skill.id === skillId)) {
+				totals.push({ skill: index.skillById.get(skillId), level: level });
+			}
+		}
+		totals.sort((a, b) => (wanted.has(b.skill.id) ? 1 : 0) - (wanted.has(a.skill.id) ? 1 : 0) || b.level - a.level);
 
 		const chips = totals.map((entry) => {
 			const isCount = Solver.isPieceCountSkill(entry.skill);
@@ -566,17 +806,35 @@
 			]),
 			el("div", { style: "overflow-x:auto" }, el("table", { class: "pieces" }, el("tbody", {}, rows))),
 			el("div", { class: "weapon-box" }, [
-				el("span", { class: "label", text: "Armor jewels to add" }),
+				el("span", { class: "label", text: "Jewels you need for your skills" }),
 				result.jewels.length
 					? el("div", { class: "jewel-list" }, result.jewels.map(jewelChip))
-					: el("span", { class: "muted", text: "None needed. Every slot is free for extra skills." }),
+					: el("span", { class: "muted", text: "None needed. The armor and charm already do it." }),
 			]),
 			bonusNeeded.length
 				? el("p", { class: "note" }, "Needs a Gogma Artian weapon that adds " +
 					bonusNeeded.map((s) => s.name).join(" and ") + ".")
 				: null,
+			el("section", { class: "block" }, [
+				el("span", { class: "label", text: "Damage, with the smart jewels" }),
+				statTiles(smart.stats),
+				smart.picks.length
+					? el("p", { class: "muted small" },
+						"Without the smart jewels: affinity " + analysis.before.affinityShown + "%, attack " +
+						attackText(analysis.before) + ", raw damage " + percent(analysis.before.damageGain) + ".")
+					: null,
+				el("details", { class: "more" }, [
+					el("summary", { text: "Where the numbers come from" }),
+					el("div", { class: "breakdown" }, breakdown(smart.stats)),
+				]),
+			]),
+			el("section", { class: "block" }, [
+				el("span", { class: "label", text: "Smart jewels for the free slots" }),
+				el("p", { class: "hint", text: "Picked one by one for the most damage in the switched-on situations." }),
+				...smartJewels(analysis),
+			]),
 			el("details", { class: "more", open: position === 0 ? true : null }, [
-				el("summary", { text: "Skills this set gives (" + totals.length + ")" }),
+				el("summary", { text: "All skills, with smart jewels (" + totals.length + ")" }),
 				el("div", { class: "skill-chips" }, chips),
 			]),
 		]);
@@ -629,6 +887,7 @@
 					type: "button", class: "btn primary small", text: "Use these skills",
 					onclick: () => {
 						state.targets = known.map((s) => ({ skillId: s.skill.id, level: Math.min(s.level, Solver.maxLevel(s.skill)) }));
+						known.forEach((s) => switchOnSituationFor(s.skill));
 						state.openInfo = null;
 						state.showAll = false;
 						showTab("build");
@@ -682,6 +941,7 @@
 		state.weaponSlots = [3, 3, 3];
 	}
 	gogmaBox.checked = state.gogmaWeapon;
+	affinityInput.value = String(state.weaponAffinity);
 	document.getElementById("data-note").textContent =
 		"Game data from the mhdb project, updated " + formatDate(data.version) + ". It includes the final big update (February 2026).";
 

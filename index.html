@@ -255,7 +255,7 @@
 	.hint { font-size: 0.85rem; color: var(--muted); }
 
 	/* Jewel slot badges: a small diamond with the slot level inside */
-	.slots { display: inline-flex; gap: 3px; vertical-align: middle; }
+	.slots { display: inline-flex; flex-wrap: wrap; gap: 3px; vertical-align: middle; max-width: 100%; }
 	.slot {
 		width: 20px; height: 20px; display: inline-grid; place-items: center;
 		font: 600 0.72rem var(--font-label); color: var(--muted);
@@ -303,6 +303,50 @@
 	details.more[open] summary { margin-bottom: 8px; }
 
 	.weapon-box { display: grid; gap: 8px; }
+
+	/* Weapon affinity field */
+	.number-field { display: inline-flex; align-items: center; gap: 4px; }
+	.number-field input {
+		width: 5.5em; font: 500 0.94rem var(--font-body); padding: 6px 8px; border-radius: 6px;
+		border: 1px solid var(--line); background: var(--panel-2); color: var(--fg);
+		font-variant-numeric: tabular-nums;
+	}
+
+	/* Fight situation switches */
+	.situations { display: grid; gap: 6px; }
+	.situations:empty { display: none; }
+	.situation-row { display: flex; flex-wrap: wrap; gap: 6px; }
+	.situation {
+		font: 500 0.88rem var(--font-body); color: var(--muted); cursor: pointer;
+		background: transparent; border: 1.5px solid var(--line); border-radius: 999px; padding: 4px 12px;
+	}
+	.situation:hover { border-color: var(--brass); color: var(--fg); }
+	.situation.on { background: var(--brass-soft); border-color: var(--brass); color: var(--fg); }
+	.situation.on::before { content: "✓ "; color: var(--brass); font-weight: 600; }
+
+	/* Damage numbers inside a set */
+	.block { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+	.stat-tiles { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); }
+	.stat {
+		background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+		padding: 8px 10px; display: grid; gap: 1px; align-content: start; min-width: 0;
+	}
+	.stat .label { font-size: 0.7rem; }
+	.stat-value {
+		font: 600 1.55rem/1.15 var(--font-label); font-variant-numeric: tabular-nums; color: var(--fg);
+	}
+	.stat-sub { font-size: 0.78rem; color: var(--muted); }
+	.small { font-size: 0.86rem; }
+	.breakdown { display: grid; gap: 8px; font-size: 0.9rem; }
+	.lines { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+	.lines li.off { opacity: 0.55; }
+	.smart-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.92rem; }
+	.smart-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+	.where-tag {
+		font: 600 0.68rem var(--font-label); letter-spacing: 0.07em; text-transform: uppercase;
+		color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px;
+	}
+	.gain { font: 600 0.9rem var(--font-label); color: var(--good); font-variant-numeric: tabular-nums; margin-left: auto; }
 	.online { display: flex; flex-wrap: wrap; gap: 8px; }
 
 	/* ---------- Popular tab ---------- */
@@ -357,6 +401,11 @@
 					</select>
 				</div>
 				<div class="option">
+					<label for="weapon-affinity">Weapon affinity</label>
+					<span class="number-field"><input type="number" id="weapon-affinity" min="-100" max="100" step="5" inputmode="numeric"><span>%</span></span>
+					<span class="hint">The number on your weapon, for the damage numbers.</span>
+				</div>
+				<div class="option">
 					<input type="checkbox" id="gogma">
 					<label for="gogma">I have a Gogma Artian weapon</label>
 				</div>
@@ -367,6 +416,7 @@
 		<section class="panel" aria-labelledby="found-title">
 			<div class="step-title"><span class="step-num">STEP 2</span><h2 id="found-title">Sets that work</h2></div>
 			<p id="status" class="status" aria-live="polite"></p>
+			<div id="situations" class="situations"></div>
 			<div id="weapon-box" class="weapon-box"></div>
 			<div id="results" class="results"></div>
 			<div id="more-results"></div>
@@ -393,6 +443,8 @@
 </div>
 
 <script src="data.js"></script>
+<script src="effects.js"></script>
 <script src="solver.js"></script>
+<script src="stats.js"></script>
 <script src="builds.js"></script>
 <script src="app.js"></script>
