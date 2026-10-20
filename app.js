@@ -30,6 +30,9 @@
 		weaponSlots: [3, 3, 3],
 		gogmaWeapon: true,
 		weaponAffinity: 0, // the weapon's own affinity in %, added to the skills
+		// Charms you own (appraised ones have their own skills and slots):
+		// { id, name, rarity, skills: [[skillId, level]], armorSlots, weaponSlots, buildAround }
+		myCharms: [],
 		situations: effects.defaultSituations.slice(), // fight situations switched on
 		openInfo: null, // skill id whose "where to get it" is open
 		showAll: false,
@@ -72,12 +75,27 @@
 		return el("span", { class: "kind " + skill.kind, text: KIND_LABEL[skill.kind] });
 	}
 
-	function slotBadges(slots) {
+	// Round badges are armor slots. With kind "weapon" they are square, like weapon slots.
+	function slotBadges(slots, kind) {
+		const weapon = kind === "weapon";
 		const shown = slots.length ? slots : [];
-		return el("span", { class: "slots", "aria-label": shown.length ? "Jewel slots " + shown.join(", ") : "No jewel slots" },
+		const what = weapon ? "Weapon slots " : "Jewel slots ";
+		return el("span", { class: "slots", "aria-label": shown.length ? what + shown.join(", ") : "No jewel slots" },
 			shown.length
-				? shown.map((s) => el("span", { class: "slot s" + s, text: String(s) }))
+				? shown.map((s) => el("span", { class: "slot s" + s + (weapon ? " weapon" : ""), text: String(s) }))
 				: [el("span", { class: "slot none", text: "–" })]);
+	}
+
+	// Armor badges, then weapon badges, side by side. Used where both kinds can be free.
+	function mixedSlotBadges(armorSlots, weaponSlots) {
+		const parts = [];
+		if (armorSlots.length) {
+			parts.push(slotBadges(armorSlots));
+		}
+		if (weaponSlots.length) {
+			parts.push(slotBadges(weaponSlots, "weapon"));
+		}
+		return el("span", { class: "slot-groups" }, parts.length ? parts : [slotBadges([])]);
 	}
 
 	function staticPips(level, max) {
@@ -108,6 +126,7 @@
 				gogmaWeapon: state.gogmaWeapon,
 				weaponAffinity: state.weaponAffinity,
 				situations: state.situations,
+				myCharms: state.myCharms,
 			}));
 		} catch (error) {
 			// Storage can be blocked (private window). The page still works, it just forgets.
@@ -127,6 +146,9 @@
 			state.weaponSlots = Array.isArray(saved.weaponSlots) ? saved.weaponSlots : [3, 3, 3];
 			state.gogmaWeapon = saved.gogmaWeapon !== false;
 			state.weaponAffinity = Number(saved.weaponAffinity) || 0;
+			if (Array.isArray(saved.myCharms)) {
+				state.myCharms = saved.myCharms.map(cleanCharm).filter(Boolean);
+			}
 			if (Array.isArray(saved.situations)) {
 				state.situations = saved.situations.filter((id) => SITUATION_LABEL[id]);
 			} else {
@@ -143,6 +165,26 @@
 				switchOnSituationFor(heroics);
 			}
 		}
+	}
+
+	// A saved charm could be from an older page or hand-edited storage, so only keep
+	// what makes sense: known skills, slot sizes 1 to 3.
+	function cleanCharm(charm) {
+		if (!charm || typeof charm.id !== "string") {
+			return null;
+		}
+		const sizes = (list) => (Array.isArray(list) ? list : []).map(Number).filter((s) => s >= 1 && s <= 3).sort((a, b) => b - a);
+		return {
+			id: charm.id,
+			name: String(charm.name || "My charm").slice(0, 40),
+			rarity: Math.max(1, Math.min(8, Number(charm.rarity) || 8)),
+			skills: (Array.isArray(charm.skills) ? charm.skills : [])
+				.filter((pair) => Array.isArray(pair) && index.skillById.has(pair[0]))
+				.map((pair) => [pair[0], Math.max(1, Math.min(Solver.maxLevel(index.skillById.get(pair[0])), Number(pair[1]) || 1))]),
+			armorSlots: sizes(charm.armorSlots),
+			weaponSlots: sizes(charm.weaponSlots),
+			buildAround: !!charm.buildAround,
+		};
 	}
 
 	// ---------- Changing the wish list ----------
@@ -388,6 +430,17 @@
 		}
 	}
 
+	// "Your charms: My charm (level 3)" lines for the where-to-get-it list, or nothing.
+	function myCharmsWith(skill) {
+		const names = state.myCharms
+			.filter((c) => c.skills.some((pair) => pair[0] === skill.id))
+			.map((c) => c.name + " (level " + c.skills.find((pair) => pair[0] === skill.id)[1] + ")");
+		if (!names.length) {
+			return [];
+		}
+		return [el("span", { class: "label", text: "Your charms" }), el("p", { text: names.join(", ") })];
+	}
+
 	// The "where to get it" list: armor pieces, jewels and charms with this skill.
 	function whereToGet(skill) {
 		const parts = [];
@@ -405,6 +458,7 @@
 				parts.push(el("p", { class: "muted", text: "Also on " + combos.length + " two-skill jewels, such as " + combos.slice(0, 3).map((d) => d.name).join(", ") + "." }));
 			}
 			parts.push(el("p", { class: "muted", text: "Many weapons also have weapon skills built in." }));
+			parts.push(...myCharmsWith(skill));
 			return el("div", { class: "where" }, parts);
 		}
 
@@ -445,6 +499,7 @@
 				parts.push(el("span", { class: "label", text: "Charms" }));
 				parts.push(el("p", {}, charms.map((c) => c.name + " (level " + c.skills.find((pair) => pair[0] === skill.id)[1] + ")").join(", ")));
 			}
+			parts.push(...myCharmsWith(skill));
 		} else {
 			parts.push(el("p", { class: "muted", text: "Set bonuses and group skills come only from wearing enough pieces. A Gogma Artian weapon can count as one extra piece." }));
 		}
@@ -463,6 +518,216 @@
 	gogmaBox.addEventListener("change", () => {
 		state.gogmaWeapon = gogmaBox.checked;
 		changed();
+	});
+
+	// ---------- Step 1: your own charms ----------
+
+	const CHARM_SKILL_ROWS = 3;
+	const CHARM_SLOT_ROWS = 3; // per kind: up to three armor and three weapon slots
+	const CHARM_RARITIES = [8, 7, 6, 5, 4, 3, 2, 1];
+	// Skills a charm can carry: armor and weapon skills (no set bonuses), A to Z.
+	const CHARM_SKILL_CHOICES = data.skills
+		.filter((s) => s.kind === "armor" || s.kind === "weapon")
+		.sort((a, b) => a.name.localeCompare(b.name));
+
+	// null = form closed, "new" = adding a charm, otherwise the id of the charm being edited.
+	let editingCharmId = null;
+
+	const charmForm = document.getElementById("charm-form");
+	const addCharmButton = document.getElementById("add-charm");
+
+	function renderMyCharms() {
+		const list = document.getElementById("my-charms");
+		list.replaceChildren(...state.myCharms.map(charmCard));
+		addCharmButton.hidden = editingCharmId !== null;
+		charmForm.hidden = editingCharmId === null;
+		if (editingCharmId !== null) {
+			fillCharmForm(state.myCharms.find((c) => c.id === editingCharmId) || null);
+		}
+	}
+
+	function charmCard(charm) {
+		const skillText = charm.skills.length
+			? charm.skills.map(([id, level]) => index.skillById.get(id).name + " " + level).join(" · ")
+			: "No skills";
+		return el("div", { class: "wish" }, [
+			el("div", { class: "wish-top" }, [
+				el("div", { class: "wish-title" }, [
+					el("span", { class: "wish-name", text: charm.name }),
+					el("span", { class: "kind mine", text: "Rarity " + charm.rarity }),
+				]),
+				el("span", { class: "row" }, [
+					el("button", {
+						type: "button", class: "linkish", text: "Edit",
+						onclick: () => {
+							editingCharmId = charm.id;
+							renderMyCharms();
+						},
+					}),
+					el("button", {
+						type: "button", class: "remove", "aria-label": "Remove " + charm.name, text: "×",
+						onclick: () => removeCharm(charm.id),
+					}),
+				]),
+			]),
+			el("span", { text: skillText }),
+			el("span", { class: "row" }, ["Slots", mixedSlotBadges(charm.armorSlots, charm.weaponSlots)]),
+			el("label", { class: "option" }, [
+				el("input", {
+					type: "checkbox", id: "around-" + charm.id, checked: charm.buildAround ? true : null,
+					onchange: (event) => setBuildAround(charm.id, event.target.checked),
+				}),
+				"Build around this charm (every set uses it)",
+			]),
+		]);
+	}
+
+	// Only one charm can be the one every set is built around.
+	function setBuildAround(charmId, on) {
+		for (const charm of state.myCharms) {
+			charm.buildAround = on && charm.id === charmId;
+		}
+		renderMyCharms();
+		changed();
+	}
+
+	function removeCharm(charmId) {
+		state.myCharms = state.myCharms.filter((c) => c.id !== charmId);
+		if (editingCharmId === charmId) {
+			editingCharmId = null;
+		}
+		renderMyCharms();
+		changed();
+	}
+
+	function skillSelect(id, selectedId) {
+		const select = el("select", { id: id, "aria-label": "Charm skill" });
+		select.appendChild(el("option", { value: "", text: "No skill" }));
+		for (const [kind, label] of [["armor", "Armor skills"], ["weapon", "Weapon skills"]]) {
+			select.appendChild(el("optgroup", { label: label }, CHARM_SKILL_CHOICES
+				.filter((s) => s.kind === kind)
+				.map((s) => el("option", { value: String(s.id), text: s.name, selected: s.id === selectedId ? true : null }))));
+		}
+		return select;
+	}
+
+	// Levels 1 to the skill's max. A new skill starts at its max, since charms often have that.
+	function fillLevels(select, skillId, level) {
+		const skill = index.skillById.get(Number(skillId));
+		const max = skill ? Solver.maxLevel(skill) : 1;
+		const chosen = Math.min(level || max, max);
+		select.replaceChildren();
+		for (let i = 1; i <= max; i++) {
+			select.appendChild(el("option", { value: String(i), text: "Level " + i, selected: i === chosen ? true : null }));
+		}
+		select.disabled = !skill;
+	}
+
+	function slotSelect(id, size, label) {
+		return el("select", { id: id, "aria-label": label },
+			[["", "–"], ["1", "1"], ["2", "2"], ["3", "3"]].map(([value, text]) =>
+				el("option", { value: value, text: text, selected: String(size || "") === value ? true : null })));
+	}
+
+	function fillCharmForm(charm) {
+		const skillRows = [];
+		for (let i = 0; i < CHARM_SKILL_ROWS; i++) {
+			const pair = charm ? charm.skills[i] : null;
+			const skillBox = skillSelect("charm-skill-" + i, pair ? pair[0] : null);
+			const levelBox = el("select", { id: "charm-level-" + i, "aria-label": "Skill level" });
+			fillLevels(levelBox, pair ? pair[0] : null, pair ? pair[1] : null);
+			skillBox.addEventListener("change", () => fillLevels(levelBox, skillBox.value, null));
+			skillRows.push(el("div", { class: "form-pair" }, [skillBox, levelBox]));
+		}
+		const slotRow = (kind, label, sizes) => {
+			const selects = [];
+			for (let i = 0; i < CHARM_SLOT_ROWS; i++) {
+				selects.push(slotSelect("charm-" + kind + "-" + i, sizes[i], label + " " + (i + 1)));
+			}
+			return el("div", { class: "form-row" }, [el("span", { text: label }), el("span", { class: "row" }, selects)]);
+		};
+
+		charmForm.replaceChildren(
+			el("span", { class: "label", text: charm ? "Edit charm" : "New charm" }),
+			el("div", { class: "form-row" }, [
+				el("label", { for: "charm-name", text: "Name" }),
+				el("input", { id: "charm-name", type: "text", maxlength: "40", placeholder: "My charm", value: charm ? charm.name : "" }),
+			]),
+			el("div", { class: "form-row" }, [
+				el("label", { for: "charm-rarity", text: "Rarity" }),
+				el("select", { id: "charm-rarity" }, CHARM_RARITIES.map((r) =>
+					el("option", { value: String(r), text: String(r), selected: (charm ? charm.rarity : 8) === r ? true : null }))),
+			]),
+			el("div", { class: "form-row" }, [el("span", { text: "Skills" }), el("div", { class: "form-stack" }, skillRows)]),
+			slotRow("armor", "Armor slots", charm ? charm.armorSlots : []),
+			slotRow("weapon", "Weapon slots", charm ? charm.weaponSlots : []),
+			el("p", { id: "charm-message", class: "status warn", "aria-live": "polite" }),
+			el("div", { class: "row" }, [
+				el("button", { type: "submit", class: "btn primary small", text: "Save charm" }),
+				el("button", {
+					type: "button", class: "btn small", text: "Cancel",
+					onclick: () => {
+						editingCharmId = null;
+						renderMyCharms();
+					},
+				}),
+			]),
+		);
+	}
+
+	function readSlots(prefix) {
+		const sizes = [];
+		for (let i = 0; i < CHARM_SLOT_ROWS; i++) {
+			const value = Number(document.getElementById(prefix + i).value);
+			if (value) {
+				sizes.push(value);
+			}
+		}
+		return sizes.sort((a, b) => b - a);
+	}
+
+	charmForm.addEventListener("submit", (event) => {
+		event.preventDefault();
+		const skills = [];
+		for (let i = 0; i < CHARM_SKILL_ROWS; i++) {
+			const skillId = Number(document.getElementById("charm-skill-" + i).value);
+			// The same skill picked twice: keep the first row.
+			if (skillId && !skills.some((pair) => pair[0] === skillId)) {
+				skills.push([skillId, Number(document.getElementById("charm-level-" + i).value)]);
+			}
+		}
+		const armorSlots = readSlots("charm-armor-");
+		const weaponSlots = readSlots("charm-weapon-");
+		if (!skills.length && !armorSlots.length && !weaponSlots.length) {
+			document.getElementById("charm-message").textContent = "Add at least one skill or slot, then save.";
+			return;
+		}
+		const fields = {
+			name: document.getElementById("charm-name").value.trim().slice(0, 40) || "My charm",
+			rarity: Number(document.getElementById("charm-rarity").value),
+			skills: skills,
+			armorSlots: armorSlots,
+			weaponSlots: weaponSlots,
+		};
+		if (editingCharmId === "new") {
+			// A charm you just added is most likely the one you want to use.
+			const charm = Object.assign({ id: "mine-" + Date.now(), buildAround: true }, fields);
+			state.myCharms.forEach((c) => {
+				c.buildAround = false;
+			});
+			state.myCharms.push(charm);
+		} else {
+			Object.assign(state.myCharms.find((c) => c.id === editingCharmId), fields);
+		}
+		editingCharmId = null;
+		renderMyCharms();
+		changed();
+	});
+
+	addCharmButton.addEventListener("click", () => {
+		editingCharmId = "new";
+		renderMyCharms();
+		document.getElementById("charm-skill-0").focus();
 	});
 
 	// Weapon affinity only changes the numbers, not which armor fits, so no new search.
@@ -492,22 +757,36 @@
 			renderResults();
 			return;
 		}
+		const around = state.myCharms.find((charm) => charm.buildAround);
 		lastAnswer = Solver.findSets(index, {
 			targets: state.targets,
 			weaponSlots: state.weaponSlots,
 			gogmaWeapon: state.gogmaWeapon,
+			customCharms: state.myCharms.map(toSolverCharm),
+			onlyCharm: around ? around.id : null,
 		});
 		renderResults();
+	}
+
+	// The solver wants the charm without the page-only "build around" flag.
+	function toSolverCharm(charm) {
+		return {
+			id: charm.id,
+			name: charm.name,
+			rarity: charm.rarity,
+			skills: charm.skills,
+			armorSlots: charm.armorSlots,
+			weaponSlots: charm.weaponSlots,
+			custom: true,
+		};
 	}
 
 	function renderResults() {
 		const status = document.getElementById("status");
 		const list = document.getElementById("results");
 		const more = document.getElementById("more-results");
-		const weaponBox = document.getElementById("weapon-box");
 		list.replaceChildren();
 		more.replaceChildren();
-		weaponBox.replaceChildren();
 		document.getElementById("situations").replaceChildren();
 
 		if (!lastAnswer) {
@@ -529,16 +808,14 @@
 				(answer.timedOut ? " (best found in 3 seconds)." : ". Sets with the most free jewel slots come first.");
 		}
 
-		renderWeapon(weaponBox, answer.weapon);
-
 		const shown = state.showAll ? answer.results : answer.results.slice(0, RESULTS_SHOWN_AT_FIRST);
-		const visible = visibleSituations(shown, answer.weapon);
+		const visible = visibleSituations(shown);
 		// A switch that is not on screen must not change anything, so only count visible ones.
 		const situationsOn = new Set(state.situations.filter((id) => visible.has(id)));
 		renderSituations(document.getElementById("situations"), visible);
 
 		shown.forEach((result, i) => {
-			const analysis = analyseSet(result, answer.weapon, situationsOn);
+			const analysis = analyseSet(result, situationsOn);
 			list.appendChild(resultCard(analysis, i));
 		});
 
@@ -557,32 +834,22 @@
 	function jewelChip(entry) {
 		// The slot badge already shows the size, so drop the "[2]" from the name.
 		const name = entry.deco.name.replace(/\s*\[\d\]$/, "");
-		return el("span", { class: "jewel" }, [slotBadges([entry.deco.slot]), (entry.count > 1 ? entry.count + "× " : "") + name]);
+		return el("span", { class: "jewel" }, [slotBadges([entry.deco.slot], entry.deco.kind), (entry.count > 1 ? entry.count + "× " : "") + name]);
 	}
 
-	// Weapon jewels do not depend on the armor, so they are shown once above all sets.
-	function renderWeapon(box, weapon) {
-		const wantsWeaponSkills = state.targets.some((t) => index.skillById.get(t.skillId).kind === "weapon");
-		if (!wantsWeaponSkills) {
-			return;
-		}
-		box.appendChild(el("span", { class: "label", text: "Weapon jewels (the same for every set)" }));
-		if (weapon.jewels.length) {
-			box.appendChild(el("div", { class: "jewel-list" }, weapon.jewels.map(jewelChip)));
-		}
-		if (weapon.missing.length) {
-			box.appendChild(el("p", { class: "note" },
-				"Your weapon slots cannot hold everything. Still missing: " +
-				weapon.missing.map((m) => m.skill.name + " +" + m.levels).join(", ") +
-				". Pick a weapon that has these skills built in."));
-		}
+	// Armor and weapon jewels look alike, so say where each one goes.
+	function taggedJewel(entry) {
+		return el("span", { class: "jewel" }, [
+			el("span", { class: "where-tag", text: entry.deco.kind === "weapon" ? "Weapon" : "Armor" }),
+			jewelChip(entry),
+		]);
 	}
 
 	// ---------- Step 2: fight situations and damage numbers ----------
 
 	// Situations worth a switch: the common ones, the ones your wished skills
 	// are built for, and the ones the shown sets' skills use.
-	function visibleSituations(results, weapon) {
+	function visibleSituations(results) {
 		const visible = new Set(effects.alwaysShown.concat(effects.defaultSituations));
 		for (const target of state.targets) {
 			const skill = index.skillById.get(target.skillId);
@@ -593,7 +860,7 @@
 			}
 		}
 		for (const result of results) {
-			const levels = new Map(Solver.totalSkills(index, result, weapon).map((e) => [e.skill.id, e.level]));
+			const levels = new Map(Solver.totalSkills(index, result).map((e) => [e.skill.id, e.level]));
 			for (const id of Stats.situationsUsed(index, effects, levels)) {
 				visible.add(id);
 			}
@@ -629,26 +896,16 @@
 		box.appendChild(row);
 	}
 
-	// Weapon slots the wish-list jewels leave empty.
-	function freeWeaponSlots(weapon) {
-		const used = [];
-		for (const entry of weapon.jewels) {
-			for (let n = 0; n < entry.count; n++) {
-				used.push(entry.deco.slot);
-			}
-		}
-		return Solver.fitJewels(used, state.weaponSlots) || [];
-	}
-
 	// Everything one set card needs: skill levels, numbers before and after smart jewels.
-	function analyseSet(result, weapon, situationsOn) {
-		const totals = Solver.totalSkills(index, result, weapon).filter((e) => e.level > 0);
+	// Free weapon slots come with the set, because your own charm can add one.
+	function analyseSet(result, situationsOn) {
+		const totals = Solver.totalSkills(index, result).filter((e) => e.level > 0);
 		const levels = new Map(totals.map((e) => [e.skill.id, e.level]));
 		return {
 			result: result,
 			totals: totals,
 			before: Stats.computeStats(index, effects, levels, situationsOn, state.weaponAffinity),
-			smart: Stats.suggestJewels(index, effects, levels, result.freeSlots, freeWeaponSlots(weapon), situationsOn, state.weaponAffinity),
+			smart: Stats.suggestJewels(index, effects, levels, result.freeSlots, result.freeWeaponSlots, situationsOn, state.weaponAffinity),
 		};
 	}
 
@@ -740,8 +997,7 @@
 			// Biggest gain on top, so the most worthwhile jewel is the first one you read.
 			const byGain = smart.picks.slice().sort((a, b) => b.gain - a.gain);
 			children.push(el("ul", { class: "smart-list" }, byGain.map((entry) => el("li", {}, [
-				el("span", { class: "where-tag", text: entry.deco.kind === "weapon" ? "Weapon" : "Armor" }),
-				jewelChip(entry),
+				taggedJewel(entry),
 				el("span", { class: "muted", text: levelChange(entry) }),
 				el("span", { class: "gain", text: percent(entry.gain) }),
 			]))));
@@ -752,11 +1008,29 @@
 		} else if (left.length) {
 			children.push(el("p", { class: "muted" }, [
 				smart.picks.length ? "Still free: " : "Free: ",
-				slotBadges(left.sort((a, b) => b - a)),
+				mixedSlotBadges(smart.leftArmorSlots, smart.leftWeaponSlots),
 				" Nothing adds damage there in the switched-on situations. Switch on more above, or use them for comfort skills like Divine Blessing or Evade Window.",
 			]));
 		}
 		return children;
+	}
+
+	// The jewels the wish list needs: armor ones, weapon ones, and any weapon skill
+	// that does not fit at all.
+	function neededJewels(result) {
+		const all = result.jewels.concat(result.weapon.jewels);
+		return el("div", { class: "weapon-box" }, [
+			el("span", { class: "label", text: "Jewels you need for your skills" }),
+			all.length
+				? el("div", { class: "jewel-list" }, all.map(taggedJewel))
+				: el("span", { class: "muted", text: "None needed. The armor and charm already do it." }),
+			result.weapon.missing.length
+				? el("p", { class: "note" },
+					"Your weapon slots cannot hold everything. Still missing: " +
+					result.weapon.missing.map((m) => m.skill.name + " +" + m.levels).join(", ") +
+					". Pick a weapon that has these skills built in.")
+				: null,
+		]);
 	}
 
 	function resultCard(analysis, position) {
@@ -768,12 +1042,18 @@
 			el("td", {}, el("span", { class: "piece-name", text: piece.name })),
 			el("td", { class: "slot-cell" }, slotBadges(piece.slots)),
 		]));
+		const charm = result.charm;
 		rows.push(el("tr", {}, [
 			el("td", { class: "slot-kind label", text: "Charm" }),
-			el("td", {}, result.charm
-				? el("span", { class: "piece-name", text: result.charm.name })
+			el("td", {}, charm
+				? el("span", { class: "row" }, [
+					el("span", { class: "piece-name", text: charm.name }),
+					charm.custom ? el("span", { class: "kind mine", text: "Yours" }) : null,
+				])
 				: el("span", { class: "muted", text: "Any charm you like" })),
-			el("td", { class: "slot-cell" }),
+			el("td", { class: "slot-cell" }, charm && charm.custom
+				? mixedSlotBadges(charm.armorSlots, charm.weaponSlots)
+				: null),
 		]));
 
 		// All skills, counting the smart jewels. Set bonuses keep their piece count.
@@ -806,16 +1086,13 @@
 				position === 0 ? el("span", { class: "badge-best", text: "Best fit" }) : null,
 				el("span", { class: "facts" }, [
 					el("span", {}, ["Defense ", el("b", { text: String(result.defense) })]),
-					el("span", {}, ["Free slots ", result.freeSlots.length ? slotBadges(result.freeSlots) : el("b", { text: "none" })]),
+					el("span", {}, ["Free slots ", result.freeSlots.length || result.freeWeaponSlots.length
+						? mixedSlotBadges(result.freeSlots, result.freeWeaponSlots)
+						: el("b", { text: "none" })]),
 				]),
 			]),
 			el("div", { style: "overflow-x:auto" }, el("table", { class: "pieces" }, el("tbody", {}, rows))),
-			el("div", { class: "weapon-box" }, [
-				el("span", { class: "label", text: "Jewels you need for your skills" }),
-				result.jewels.length
-					? el("div", { class: "jewel-list" }, result.jewels.map(jewelChip))
-					: el("span", { class: "muted", text: "None needed. The armor and charm already do it." }),
-			]),
+			neededJewels(result),
 			bonusNeeded.length
 				? el("p", { class: "note" }, "Needs a Gogma Artian weapon that adds " +
 					bonusNeeded.map((s) => s.name).join(" and ") + ".")
@@ -954,6 +1231,7 @@
 	renderPopular();
 	renderWishes();
 	renderQuickPicks();
+	renderMyCharms();
 	renderOnlineLinks();
 	runSearch();
 })();

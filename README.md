@@ -9,6 +9,10 @@ estimate) for the fight situations you switch on, such as "Monster is enraged".
 It also picks smart jewels for the free slots: the ones that add the most damage
 in those situations.
 
+You can add your own charms (appraised ones with their own skills, armor slots and
+weapon slots). Tick "Build around this charm" and every set uses it; otherwise it
+competes with the crafted charms. Charms are saved in your browser only.
+
 ## Files
 
 | File | What it is |
@@ -52,7 +56,7 @@ To look at the page on this PC, open `index.html` in a browser.
 ## Known limits
 
 - Weapon skills are filled with weapon jewels only. Skills already built into a weapon are not counted.
-- Random charms (appraised "Unknown Charm" etc.) are not used, because their skills differ per player.
+- Random charms (appraised "Unknown Charm" etc.) differ per player, so they are only used when you add your own.
 - A Gogma Artian weapon is assumed to add one piece to any one set bonus and one group skill.
 - Raw damage is an estimate for a 200-attack weapon. Element damage is not included, and neither
   are skills whose in-game text gives no number (Burst, Lord's Soul and others). The page names them.

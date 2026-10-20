@@ -39,22 +39,33 @@ function levelOf(list, name) {
 // Every result must really reach every goal. This re-adds the skills from scratch.
 function resultReachesGoals(answer, targets) {
 	for (const result of answer.results) {
-		const totals = Solver.totalSkills(index, result, answer.weapon);
+		const totals = Solver.totalSkills(index, result, result.weapon);
 		for (const target of targets) {
 			const skill = index.skillById.get(target.skillId);
-			if (skill.kind === "weapon") {
-				continue; // weapon skills are reported as "missing" instead
-			}
 			const goal = Math.min(target.level, Solver.maxLevel(skill));
+			if (skill.kind === "weapon") {
+				// Weapon skills may not fit; then they must be reported as missing.
+				const missing = result.weapon.missing.find((m) => m.skill.id === skill.id);
+				const have = levelOf(totals, skill.name) + (missing ? missing.levels : 0);
+				if (have < goal) {
+					return skill.name + " neither reached nor reported missing";
+				}
+				continue;
+			}
 			if (levelOf(totals, skill.name) < goal) {
 				return skill.name + " only " + levelOf(totals, skill.name) + " in " + result.pieces.map((p) => p.name).join(", ");
 			}
 		}
-		// Jewels must fit the slots the armor actually has.
-		const slots = result.pieces.flatMap((p) => p.slots);
+		// Armor jewels must fit the armor's slots plus the charm's armor slots.
+		const slots = result.pieces.flatMap((p) => p.slots).concat(result.charm && result.charm.armorSlots ? result.charm.armorSlots : []);
 		const sizes = result.jewels.flatMap((j) => new Array(j.count).fill(j.deco.slot));
 		if (Solver.fitJewels(sizes, slots) === null) {
-			return "jewels do not fit";
+			return "armor jewels do not fit";
+		}
+		// Weapon jewels must fit the weapon's slots plus the charm's weapon slots.
+		const weaponSizes = result.weapon.jewels.flatMap((j) => new Array(j.count).fill(j.deco.slot));
+		if (Solver.fitJewels(weaponSizes, result.weapon.slots) === null) {
+			return "weapon jewels do not fit";
 		}
 	}
 	return "";
@@ -107,6 +118,47 @@ check("jewel fit: too many jewels fails", Solver.fitJewels([1, 1, 1], [3, 3]) ==
 	check("Critical Boost 5 fits in a 3-3-3 weapon", answer.weapon.missing.length === 0, names);
 	const small = Solver.findSets(index, { targets: targets, weaponSlots: [1], gogmaWeapon: false });
 	check("Critical Boost 5 reports what is missing in a 1-slot weapon", small.weapon.missing.length === 1, small.weapon.missing.map((m) => m.skill.name + " " + m.levels).join(", "));
+}
+
+// --- Your own charm (the user's real one: Divine Blessing 3, Attack Boost 3, armor ①①, weapon ①) ---
+{
+	const myCharm = {
+		id: "mine-test", name: "Test charm", rarity: 8, custom: true,
+		skills: [[skillId("Divine Blessing"), 3], [skillId("Attack Boost"), 3]],
+		armorSlots: [1, 1], weaponSlots: [1],
+	};
+	const targets = [{ skillId: skillId("Heroics"), level: 5 }, { skillId: skillId("Attack Boost"), level: 5 }];
+
+	const forced = Solver.findSets(index, { targets: targets, weaponSlots: [3, 3, 3], customCharms: [myCharm], onlyCharm: myCharm.id });
+	check("build around your charm: sets found", forced.results.length > 0, forced.results.length + " sets");
+	check("build around your charm: every set uses it", forced.results.every((r) => r.charm === myCharm));
+	const problem = resultReachesGoals(forced, targets);
+	check("build around your charm: sets really reach the goals", problem === "", problem);
+	const first = forced.results[0];
+	if (first) {
+		const totals = Solver.totalSkills(index, first);
+		check("charm's Divine Blessing 3 is counted", levelOf(totals, "Divine Blessing") >= 3, String(levelOf(totals, "Divine Blessing")));
+		check("charm's Attack Boost 3 lowers what the weapon jewels must give",
+			first.weapon.jewels.every((j) => j.deco.slot <= 2) && levelOf(totals, "Attack Boost") === 5,
+			first.weapon.jewels.map((j) => j.count + "x " + j.deco.name).join(", "));
+		check("charm's weapon slot counts as a weapon slot", first.weapon.slots.length === 4, first.weapon.slots.join(","));
+		check("charm's armor slots count as armor slots",
+			first.freeSlots.length + first.jewels.reduce((n, j) => n + j.count, 0) === first.pieces.flatMap((p) => p.slots).length + 2);
+	}
+
+	// Without "build around", the finder may still pick a crafted charm if that is better.
+	const free = Solver.findSets(index, { targets: targets, weaponSlots: [3, 3, 3], customCharms: [myCharm] });
+	const freeProblem = resultReachesGoals(free, targets);
+	check("your charm as one option among many: sets correct", free.results.length > 0 && freeProblem === "", freeProblem);
+
+	// A charm that gives a wished armor skill must be able to help reach it.
+	const heroicsCharm = { id: "mine-heroics", name: "Heroics charm", rarity: 8, custom: true, skills: [[skillId("Heroics"), 5]], armorSlots: [], weaponSlots: [] };
+	const helped = Solver.findSets(index, {
+		targets: [{ skillId: skillId("Heroics"), level: 5 }], weaponSlots: [3, 3, 3], customCharms: [heroicsCharm], onlyCharm: heroicsCharm.id,
+	});
+	check("a custom Heroics 5 charm needs no Heroics jewels",
+		helped.results.length > 0 && helped.results[0].jewels.length === 0,
+		helped.results[0] ? helped.results[0].jewels.map((j) => j.deco.name).join(", ") || "no jewels" : "no sets");
 }
 
 // --- Every popular build: names must exist, and the finder should cope ---

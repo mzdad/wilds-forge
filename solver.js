@@ -27,6 +27,9 @@
 	// A result that needs the special Gogma Artian weapon bonus ranks lower,
 	// because not everyone owns such a weapon.
 	const SCORE_PENALTY_WEAPON_BONUS = 100;
+	// A wished weapon skill level that does not fit anywhere. Only differs between sets
+	// when your own charm (with weapon skills or weapon slots) is in some sets and not others.
+	const SCORE_PENALTY_MISSING_WEAPON_LEVEL = 40;
 
 	// ---------- Looking things up ----------
 
@@ -303,6 +306,15 @@
 		return { jewels: countJewels(best.picked.map((o) => o.deco)), missing: missing };
 	}
 
+	// The level a charm gives in one skill (0 for no charm or not on it).
+	function levelOn(charm, skillId) {
+		if (!charm) {
+			return 0;
+		}
+		const pair = charm.skills.find((p) => p[0] === skillId);
+		return pair ? pair[1] : 0;
+	}
+
 	// Turns a list of jewels into [{ deco, count }], e.g. "Attack Jewel III x2".
 	function countJewels(decos) {
 		const counted = [];
@@ -332,7 +344,32 @@
 		const need = goals.map((goal) => goal.need);
 		const firstPieceGoal = armorGoals.length;
 
-		const weapon = solveWeapon(index, split.weaponGoals, request.weaponSlots || [3, 3, 3]);
+		const weaponSlots = request.weaponSlots || [3, 3, 3];
+		// Your own charms: { id, name, rarity, skills, armorSlots, weaponSlots, custom: true }.
+		const customCharms = request.customCharms || [];
+		const forcedCharm = customCharms.find((charm) => charm.id === request.onlyCharm) || null;
+
+		// The weapon jewels depend on the charm only when it has weapon skills or weapon
+		// slots (only your own appraised charms do), so each charm is worked out once.
+		const weaponByCharm = new Map();
+		function weaponFor(charm) {
+			const key = charm && charm.custom ? charm.id : "crafted";
+			if (!weaponByCharm.has(key)) {
+				const goals = split.weaponGoals
+					.map((goal) => ({ skill: goal.skill, need: goal.need - levelOn(charm, goal.skill.id) }))
+					.filter((goal) => goal.need > 0);
+				const slots = weaponSlots.concat(charm && charm.weaponSlots ? charm.weaponSlots : []);
+				const solved = solveWeapon(index, goals, slots);
+				const used = solved.jewels.flatMap((entry) => new Array(entry.count).fill(entry.deco.slot));
+				weaponByCharm.set(key, {
+					jewels: solved.jewels,
+					missing: solved.missing,
+					slots: slots,
+					freeSlots: fitJewels(used, slots) || [],
+				});
+			}
+			return weaponByCharm.get(key);
+		}
 
 		// Options per armor slot.
 		const optionsByKind = ARMOR_KINDS.map((kind) => {
@@ -357,7 +394,7 @@
 			return kept;
 		});
 
-		// Charm options. Charms only carry armor skills and have no slots.
+		// Crafted charm options. Crafted charms only carry armor skills and have no slots.
 		let charmOptions = [];
 		for (const charm of index.data.charms) {
 			const gives = contributionOf(charm.skills, armorGoals, []);
@@ -366,9 +403,20 @@
 			}
 		}
 		charmOptions = removeBeatenOptions(charmOptions);
-		const charmChoices = [null].concat(charmOptions);
+		// Your own charms always stay in the running: their slots and weapon skills can matter
+		// even when they give none of the wished armor skills.
+		const customOptions = customCharms.map((charm) => ({
+			id: charm.id, charm: charm, gives: contributionOf(charm.skills, armorGoals, []), slots: [0, 0, 0], defense: 0,
+		}));
+		// "Build around this charm" means every set uses it. Otherwise null stands for
+		// "any charm you like" (when no charm is needed for the wished skills).
+		const charmChoices = forcedCharm
+			? customOptions.filter((option) => option.charm === forcedCharm)
+			: [null].concat(charmOptions, customOptions);
+		const realChoices = charmChoices.filter(Boolean);
 
-		const charmBest = armorGoals.map((_, i) => Math.max(0, ...charmOptions.map((c) => c.gives[i])));
+		const charmBest = armorGoals.map((_, i) => Math.max(0, ...realChoices.map((c) => c.gives[i])));
+		const charmSlotsBest = Math.max(0, ...realChoices.map((c) => (c.charm.armorSlots || []).length));
 
 		// For pruning: the most each goal could still gain from the slots not yet chosen.
 		const stillPossible = [];
@@ -418,7 +466,7 @@
 			for (const option of chosen) {
 				slotsSoFar += option.slots.filter((s) => s > 0).length;
 			}
-			return jewelsNeeded <= slotsSoFar + slotsStillPossible[depth];
+			return jewelsNeeded <= slotsSoFar + slotsStillPossible[depth] + charmSlotsBest;
 		}
 
 		function checkFullSet() {
@@ -479,18 +527,23 @@
 				if (!possible) {
 					continue;
 				}
-				const freeSlots = fitJewels(jewels.map((j) => j.slot), slots);
+				// Armor jewels can also go in the charm's own armor slots.
+				const armorSlots = charm && charm.charm.armorSlots ? slots.concat(charm.charm.armorSlots) : slots;
+				const freeSlots = fitJewels(jewels.map((j) => j.slot), armorSlots);
 				if (freeSlots === null) {
 					continue;
 				}
-				const freePoints = freeSlots.reduce((sum, s) => sum + s, 0);
+				const weapon = weaponFor(charm ? charm.charm : null);
+				const freePoints = freeSlots.reduce((sum, s) => sum + s, 0) + weapon.freeSlots.reduce((sum, s) => sum + s, 0);
+				const missingWeaponLevels = weapon.missing.reduce((sum, m) => sum + m.levels, 0);
 				const bonusUsed = (setShort ? 1 : 0) + (groupShort ? 1 : 0);
 				const score =
 					freePoints * SCORE_PER_FREE_SLOT_LEVEL +
 					defense * SCORE_PER_DEFENSE -
-					bonusUsed * SCORE_PENALTY_WEAPON_BONUS;
+					bonusUsed * SCORE_PENALTY_WEAPON_BONUS -
+					missingWeaponLevels * SCORE_PENALTY_MISSING_WEAPON_LEVEL;
 				if (!best || score > best.score) {
-					best = { charm: charm, jewels: jewels, freeSlots: freeSlots, score: score };
+					best = { charm: charm, jewels: jewels, freeSlots: freeSlots, weapon: weapon, score: score };
 				}
 			}
 			if (!best) {
@@ -501,7 +554,9 @@
 				pieces: chosen.map((o) => o.piece),
 				charm: best.charm ? best.charm.charm : null,
 				jewels: countJewels(best.jewels),
-				freeSlots: best.freeSlots,
+				freeSlots: best.freeSlots, // free armor slots, including the charm's
+				weapon: best.weapon, // weapon jewels, missing weapon skills and free weapon slots
+				freeWeaponSlots: best.weapon.freeSlots,
 				weaponBonus: { set: setShort, group: groupShort },
 				defense: defense,
 				score: best.score,
@@ -555,7 +610,8 @@
 
 		return {
 			results: results,
-			weapon: weapon,
+			// The weapon answer when no set is found (each set also carries its own).
+			weapon: weaponFor(forcedCharm),
 			timedOut: timedOut,
 			setsChecked: setsChecked,
 			milliseconds: Date.now() - started,
@@ -566,6 +622,8 @@
 	// Adds up every skill a finished build gives (armor, charm, jewels, set pieces,
 	// weapon jewels and weapon bonus). Returns [{ skill, level, pieces? }].
 	function totalSkills(index, result, weapon) {
+		// Each set carries its own weapon answer (it can depend on the charm).
+		weapon = weapon || result.weapon;
 		const levels = new Map();
 		const pieceCounts = new Map();
 

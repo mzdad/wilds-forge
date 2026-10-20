@@ -263,6 +263,26 @@
 	}
 	.slot.s3 { color: var(--brass); border-color: var(--brass); }
 	.slot.none { border-style: dotted; opacity: 0.5; }
+	/* Weapon slots are square and blue, so they never look like armor slots. */
+	.slot.weapon, .slot.s3.weapon { border-radius: 4px; color: var(--weapon); border-color: var(--weapon); }
+	.slot-groups { display: inline-flex; flex-wrap: wrap; gap: 8px; vertical-align: middle; }
+	.row { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+	.kind.mine { color: var(--good); }
+
+	/* Your own charm form */
+	.charm-form {
+		display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 8px;
+		padding: 12px; background: var(--panel-2);
+	}
+	.form-row { display: grid; gap: 4px; font-size: 0.94rem; }
+	.form-stack { display: grid; gap: 6px; }
+	.form-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+	.charm-form select, .charm-form input[type="text"] {
+		font: 500 0.94rem var(--font-body); padding: 6px 8px; border-radius: 6px;
+		border: 1px solid var(--line); background: var(--panel); color: var(--fg); min-width: 0;
+	}
+	.charm-form select:disabled { opacity: 0.5; }
+	.charm-form .status:empty { display: none; }
 
 	/* ---------- Results ---------- */
 	.status { font-size: 0.95rem; }
@@ -411,13 +431,20 @@
 				</div>
 				<p class="hint">A Gogma Artian weapon counts as one extra piece for one set bonus and one group skill. That makes some top builds possible with only five armor pieces.</p>
 			</div>
+
+			<div class="options">
+				<span class="label">Your charms</span>
+				<p class="hint">Got an appraised charm with its own skills and slots? Add it and the forge puts jewels in its slots and counts its skills.</p>
+				<div id="my-charms" class="wishes"></div>
+				<form id="charm-form" class="charm-form" hidden></form>
+				<div><button type="button" class="btn small" id="add-charm">+ Add your own charm</button></div>
+			</div>
 		</section>
 
 		<section class="panel" aria-labelledby="found-title">
 			<div class="step-title"><span class="step-num">STEP 2</span><h2 id="found-title">Sets that work</h2></div>
 			<p id="status" class="status" aria-live="polite"></p>
 			<div id="situations" class="situations"></div>
-			<div id="weapon-box" class="weapon-box"></div>
 			<div id="results" class="results"></div>
 			<div id="more-results"></div>
 
