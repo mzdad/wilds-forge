@@ -15,30 +15,31 @@
 
 window.WILDS_EFFECTS = {
 	// The order here is the order the switches appear on the page.
+	// "short" is used in the line above the numbers ("Numbers for: weak points").
 	// "excludes" lists situations that cannot be true at the same time; switching
 	// this one on switches those off.
 	situations: [
-		{ id: "weak", label: "Hitting a weak point" },
-		{ id: "wound", label: "Hitting a wound (adds to weak point)" },
-		{ id: "enraged", label: "Monster is enraged" },
-		{ id: "fullStamina", label: "Stamina stays full" },
-		{ id: "fullHealth", label: "Health is full", excludes: ["lowHealth", "redHealth"] },
-		{ id: "latent", label: "Latent Power is on" },
-		{ id: "lowHealth", label: "Health 35% or lower", excludes: ["fullHealth"] },
-		{ id: "redHealth", label: "Red health on your bar", excludes: ["fullHealth"] },
-		{ id: "knockedBack", label: "Just got knocked back" },
-		{ id: "perfectEvade", label: "After a perfect evade" },
-		{ id: "perfectGuard", label: "After a perfect guard" },
-		{ id: "poisonPara", label: "Monster poisoned or paralyzed" },
-		{ id: "cured", label: "Cured the Frenzy" },
-		{ id: "sneakAttack", label: "After a sneak attack" },
-		{ id: "powerClash", label: "After a Power Clash" },
-		{ id: "burst", label: "Burst is on" },
-		{ id: "ateSteak", label: "Ate a steak" },
-		{ id: "hardParts", label: "Hitting hard parts" },
-		{ id: "drawAttack", label: "Draw attacks" },
-		{ id: "wet", label: "You are wet" },
-		{ id: "jumping", label: "Jumping attacks" },
+		{ id: "weak", short: "weak points", label: "Hitting a weak point" },
+		{ id: "wound", short: "wounds", label: "Hitting a wound (adds to weak point)" },
+		{ id: "enraged", short: "enraged monster", label: "Monster is enraged" },
+		{ id: "fullStamina", short: "full stamina", label: "Stamina stays full" },
+		{ id: "fullHealth", short: "full health", label: "Health is full", excludes: ["lowHealth", "redHealth"] },
+		{ id: "latent", short: "Latent Power on", label: "Latent Power is on" },
+		{ id: "lowHealth", short: "low health", label: "Health 35% or lower", excludes: ["fullHealth"] },
+		{ id: "redHealth", short: "red health", label: "Red health on your bar", excludes: ["fullHealth"] },
+		{ id: "knockedBack", short: "after knockback", label: "Just got knocked back" },
+		{ id: "perfectEvade", short: "after perfect evade", label: "After a perfect evade" },
+		{ id: "perfectGuard", short: "after perfect guard", label: "After a perfect guard" },
+		{ id: "poisonPara", short: "poisoned or paralyzed monster", label: "Monster poisoned or paralyzed" },
+		{ id: "cured", short: "Frenzy cured", label: "Cured the Frenzy" },
+		{ id: "sneakAttack", short: "after sneak attack", label: "After a sneak attack" },
+		{ id: "powerClash", short: "after Power Clash", label: "After a Power Clash" },
+		{ id: "burst", short: "Burst on", label: "Burst is on" },
+		{ id: "ateSteak", short: "after steak", label: "Ate a steak" },
+		{ id: "hardParts", short: "hard parts", label: "Hitting hard parts" },
+		{ id: "drawAttack", short: "draw attacks", label: "Draw attacks" },
+		{ id: "wet", short: "wet", label: "You are wet" },
+		{ id: "jumping", short: "jump attacks", label: "Jumping attacks" },
 	],
 
 	// Situations switched on for a first visit. Most fights have both.

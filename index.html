@@ -137,6 +137,7 @@
 	.btn:hover { border-color: var(--brass); }
 	.btn.primary { background: var(--brass); color: var(--on-brass); border-color: var(--brass); }
 	.btn.small { padding: 4px 10px; font-size: 0.85rem; }
+	.btn.wide { width: 100%; justify-content: center; padding: 10px 14px; }
 	.linkish {
 		background: none; border: none; padding: 0; color: var(--brass);
 		font: 500 0.9rem var(--font-body); cursor: pointer; text-decoration: underline;
@@ -156,10 +157,11 @@
 		gap: 14px;
 		min-width: 0;
 	}
-	.step-title { display: flex; align-items: baseline; gap: 10px; }
+	/* "1 What skills do you want?" with the number in a brass circle. */
+	.step-title { display: flex; align-items: center; gap: 10px; }
 	.step-num {
-		font-family: var(--font-label); font-weight: 600; color: var(--brass);
-		font-size: 0.9rem; letter-spacing: 0.08em;
+		flex: none; width: 1.6em; height: 1.6em; display: inline-grid; place-items: center; border-radius: 50%;
+		background: var(--brass); color: var(--on-brass); font: 600 1rem var(--font-label);
 	}
 
 	/* Search box with suggestions */
@@ -245,7 +247,15 @@
 	.where ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
 	.where .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
-	.options { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+	/* My gear: closed until you want it, with a one-line summary of what is set. */
+	.gear { border-top: 1px solid var(--line); padding-top: 12px; }
+	.gear summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; list-style: none; }
+	.gear summary::-webkit-details-marker { display: none; }
+	.gear summary::before { content: "▸"; color: var(--brass); }
+	.gear[open] summary::before { content: "▾"; }
+	.gear-title { font-weight: 600; }
+	.gear-body { display: grid; gap: 16px; margin-top: 12px; }
+	.gear-part { display: grid; gap: 10px; }
 	.option { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 0.94rem; }
 	.option select {
 		font: 500 0.94rem var(--font-body); padding: 6px 8px; border-radius: 6px;
@@ -290,47 +300,57 @@
 		border: 1px solid var(--line); background: var(--panel-2); color: var(--fg); min-width: 0; max-width: 100%;
 	}
 	.form-grid > select { width: 100%; }
+	.form-wide { grid-column: 1 / -1; }
 	.charm-form .status:empty { display: none; }
 
-	/* ---------- Results ---------- */
+	/* ---------- Your build ---------- */
 	.status { font-size: 0.95rem; }
+	.status:empty { display: none; }
 	.status.warn { color: var(--warn); }
-	.results { display: grid; gap: 12px; }
-	.result {
-		border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2);
-		padding: 14px; display: grid; gap: 12px; min-width: 0;
+	.results { display: grid; gap: 14px; }
+
+	/* ‹ Build 1 of 8 › */
+	.pager { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; text-align: center; }
+	.pager-text { display: grid; gap: 1px; }
+	.pager-btn { font-size: 1.5rem; line-height: 1; width: 44px; height: 44px; justify-content: center; padding: 0; }
+	.pager-btn:disabled { opacity: 0.35; cursor: default; }
+
+	.build { display: grid; gap: 12px; min-width: 0; }
+	.todo-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 6px; }
+
+	/* To-do lists you can tick off while setting up in the game */
+	.checklist { list-style: none; margin: 0; padding: 0; display: grid; }
+	.checklist li {
+		display: flex; align-items: center; gap: 10px; padding: 8px 0;
+		border-top: 1px solid var(--line); min-width: 0;
 	}
-	.result.best { border-color: var(--brass); }
-	.result-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-	.result-head .facts { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.9rem; color: var(--muted); }
-	.result-head .facts b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
-	.badge-best {
-		font: 600 0.72rem var(--font-label); letter-spacing: 0.08em; text-transform: uppercase;
-		background: var(--brass); color: var(--on-brass); border-radius: 4px; padding: 1px 6px;
-	}
-	.pieces { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-	.pieces td { padding: 5px 6px 5px 0; border-top: 1px solid var(--line); vertical-align: middle; }
-	.pieces tr:first-child td { border-top: none; }
-	.pieces .slot-kind { width: 4.2em; }
-	.pieces .slot-cell { text-align: right; white-space: nowrap; }
+	.checklist li:first-child { border-top: none; }
+	.check { flex: 1; min-width: 0; display: grid; grid-template-columns: auto 4.4em minmax(0, 1fr); gap: 10px; align-items: center; cursor: pointer; }
+	.check input { width: 20px; height: 20px; margin: 0; accent-color: var(--brass); cursor: pointer; }
+	.check-kind { display: inline-flex; }
+	.check-main { display: grid; gap: 1px; min-width: 0; }
+	.check-side { flex: none; display: inline-flex; align-items: center; }
+	.checklist li.done .check-main { text-decoration: line-through; opacity: 0.5; }
 	.piece-name { font-weight: 500; }
-	.jewel-list { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.93rem; align-items: center; }
-	.jewel { display: inline-flex; gap: 5px; align-items: center; }
+	.pill {
+		font: 600 0.7rem var(--font-label); letter-spacing: 0.07em; text-transform: uppercase;
+		color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px;
+	}
+	.gain { font: 600 0.9rem var(--font-label); color: var(--good); font-variant-numeric: tabular-nums; white-space: nowrap; }
 	.note {
 		font-size: 0.9rem; border-left: 3px solid var(--warn); padding: 4px 10px;
-		background: var(--panel); border-radius: 0 6px 6px 0;
+		background: var(--panel-2); border-radius: 0 6px 6px 0;
 	}
 	.skill-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 	.skill-chip {
 		display: inline-flex; gap: 6px; align-items: center; font-size: 0.86rem;
-		border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; background: var(--panel);
+		border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; background: var(--panel-2);
 	}
 	.skill-chip.wanted { border-color: var(--brass); }
 	.skill-chip .lv { font: 600 0.8rem var(--font-label); color: var(--muted); font-variant-numeric: tabular-nums; }
 	details.more summary { cursor: pointer; color: var(--brass); font-weight: 500; font-size: 0.92rem; }
 	details.more[open] summary { margin-bottom: 8px; }
-
-	.weapon-box { display: grid; gap: 8px; }
+	.online-box { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
 
 	/* Weapon affinity field */
 	.number-field { display: inline-flex; align-items: center; gap: 4px; }
@@ -340,9 +360,9 @@
 		font-variant-numeric: tabular-nums;
 	}
 
-	/* Fight situation switches */
-	.situations { display: grid; gap: 6px; }
-	.situations:empty { display: none; }
+	/* Fight situation switches, shown after "Change" */
+	.situation-line { font-size: 0.92rem; }
+	.situations { display: grid; gap: 8px; }
 	.situation-row { display: flex; flex-wrap: wrap; gap: 6px; }
 	.situation {
 		font: 500 0.88rem var(--font-body); color: var(--muted); cursor: pointer;
@@ -352,29 +372,22 @@
 	.situation.on { background: var(--brass-soft); border-color: var(--brass); color: var(--fg); }
 	.situation.on::before { content: "✓ "; color: var(--brass); font-weight: 600; }
 
-	/* Damage numbers inside a set */
-	.block { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
-	.stat-tiles { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); }
+	/* The three big numbers: crit chance, attack, damage */
+	.stat-tiles { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 	.stat {
 		background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
 		padding: 8px 10px; display: grid; gap: 1px; align-content: start; min-width: 0;
 	}
 	.stat .label { font-size: 0.7rem; }
 	.stat-value {
-		font: 600 1.55rem/1.15 var(--font-label); font-variant-numeric: tabular-nums; color: var(--fg);
+		font: 600 clamp(1.25rem, 5vw, 1.7rem)/1.15 var(--font-label); font-variant-numeric: tabular-nums; color: var(--fg);
+		overflow-wrap: anywhere;
 	}
 	.stat-sub { font-size: 0.78rem; color: var(--muted); }
 	.small { font-size: 0.86rem; }
 	.breakdown { display: grid; gap: 8px; font-size: 0.9rem; }
 	.lines { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
 	.lines li.off { opacity: 0.55; }
-	.smart-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 0.92rem; }
-	.smart-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
-	.where-tag {
-		font: 600 0.68rem var(--font-label); letter-spacing: 0.07em; text-transform: uppercase;
-		color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px;
-	}
-	.gain { font: 600 0.9rem var(--font-label); color: var(--good); font-variant-numeric: tabular-nums; margin-left: auto; }
 	.online { display: flex; flex-wrap: wrap; gap: 8px; }
 
 	/* ---------- Popular tab ---------- */
@@ -388,7 +401,7 @@
 	footer { font-size: 0.85rem; color: var(--muted); display: grid; gap: 4px; }
 
 	@media (prefers-reduced-motion: no-preference) {
-		.result { animation: rise 0.25s ease-out both; }
+		.build { animation: rise 0.25s ease-out both; }
 		@keyframes rise { from { transform: translateY(4px); } to { transform: none; } }
 	}
 </style>
@@ -397,93 +410,89 @@
 	<header>
 		<span class="label">Monster Hunter Wilds</span>
 		<h1>Wilds Build Forge</h1>
-		<p class="lead">Pick the skills you want. The forge finds armor, a charm and jewels that reach them.</p>
+		<p class="lead">Pick the skills you want. Get a build to copy.</p>
 	</header>
 
 	<nav class="tabs" role="tablist">
 		<button class="tab" id="tab-build" role="tab" aria-selected="true" data-tab="build">Make a build</button>
-		<button class="tab" id="tab-popular" role="tab" aria-selected="false" data-tab="popular">Popular builds</button>
+		<button class="tab" id="tab-popular" role="tab" aria-selected="false" data-tab="popular">Ready-made builds</button>
 	</nav>
 
 	<main id="view-build" class="build-grid">
 		<section class="panel" aria-labelledby="wish-title">
-			<div class="step-title"><span class="step-num">STEP 1</span><h2 id="wish-title">Skills you want</h2></div>
+			<h2 class="step-title" id="wish-title"><span class="step-num">1</span>What skills do you want?</h2>
 
 			<div class="search">
-				<input id="skill-search" type="search" autocomplete="off" placeholder="Type a skill, e.g. Heroics or Guts" aria-label="Find a skill">
+				<input id="skill-search" type="search" autocomplete="off" placeholder="Type a skill, e.g. Heroics" aria-label="Find a skill">
 				<ul id="suggestions" class="suggestions" hidden></ul>
 			</div>
 			<div class="quick" id="quick-picks"></div>
 
 			<div class="wishes" id="wishes"></div>
 
-			<div class="options">
-				<div class="option" id="weapon-slots-row">
-					<label for="weapon-slots">Weapon jewel slots</label>
-					<select id="weapon-slots">
-						<option value="3,3,3">3 · 3 · 3 (Artian or Gogma weapon)</option>
-						<option value="3,3,1">3 · 3 · 1</option>
-						<option value="3,2,1">3 · 2 · 1</option>
-						<option value="3,2">3 · 2</option>
-						<option value="">No weapon jewels</option>
-					</select>
-				</div>
-				<div class="option" id="weapon-affinity-row">
-					<label for="weapon-affinity">Weapon affinity</label>
-					<span class="number-field"><input type="number" id="weapon-affinity" min="-100" max="100" step="5" inputmode="numeric"><span>%</span></span>
-					<span class="hint">The number on your weapon, for the damage numbers.</span>
-				</div>
-				<div class="option">
-					<input type="checkbox" id="gogma">
-					<label for="gogma">I have a Gogma Artian weapon</label>
-				</div>
-				<p class="hint">A Gogma Artian weapon counts as one extra piece for one set bonus and one group skill. That makes some top builds possible with only five armor pieces. Tick it to fill in your weapon below.</p>
-			</div>
+			<details class="gear" id="gear">
+				<summary>
+					<span class="gear-title">My gear</span>
+					<span class="muted small" id="gear-summary"></span>
+				</summary>
+				<div class="gear-body">
+					<div class="gear-part">
+						<span class="label">Weapon</span>
+						<label class="option"><input type="checkbox" id="gogma"> It's a Gogma Artian weapon</label>
+						<div class="option" id="weapon-slots-row">
+							<label for="weapon-slots">Jewel slots</label>
+							<select id="weapon-slots">
+								<option value="3,3,3">3 · 3 · 3</option>
+								<option value="3,3,1">3 · 3 · 1</option>
+								<option value="3,2,1">3 · 2 · 1</option>
+								<option value="3,2">3 · 2</option>
+								<option value="">None</option>
+							</select>
+						</div>
+						<div class="option" id="weapon-affinity-row">
+							<label for="weapon-affinity">Affinity</label>
+							<span class="number-field"><input type="number" id="weapon-affinity" min="-100" max="100" step="5" inputmode="numeric"><span>%</span></span>
+						</div>
+						<div id="gogma-box" class="form-grid" hidden>
+							<label for="gogma-type">Type</label>
+							<select id="gogma-type"></select>
+							<label for="gogma-element">Element</label>
+							<select id="gogma-element"></select>
+							<label for="gogma-attack">Attack</label>
+							<span class="number-field"><input type="number" id="gogma-attack" min="0" max="999" step="1" inputmode="numeric" placeholder="e.g. 220"></span>
+							<label for="gogma-affinity">Affinity</label>
+							<span class="number-field"><input type="number" id="gogma-affinity" min="-100" max="100" step="1" inputmode="numeric"><span>%</span></span>
+							<label for="gogma-set">Set bonus</label>
+							<select id="gogma-set"></select>
+							<label for="gogma-group">Group skill</label>
+							<select id="gogma-group"></select>
+							<span>Jewel slots</span>
+							<span class="row">
+								<select id="gogma-slot-0" aria-label="Weapon slot 1"></select>
+								<select id="gogma-slot-1" aria-label="Weapon slot 2"></select>
+								<select id="gogma-slot-2" aria-label="Weapon slot 3"></select>
+							</span>
+							<p class="hint form-wide">Its set bonus and group skill each count as one armor piece. Not sure or about to reroll? Leave them on "Any".</p>
+						</div>
+					</div>
 
-			<div class="options">
-				<span class="label">Your charms</span>
-				<p class="hint">Got an appraised charm with its own skills and slots? Add it and the forge puts jewels in its slots and counts its skills.</p>
-				<div id="my-charms" class="wishes"></div>
-				<form id="charm-form" class="charm-form" hidden></form>
-				<div><button type="button" class="btn small" id="add-charm">+ Add your own charm</button></div>
-			</div>
-
-			<div class="options" id="gogma-box" hidden>
-				<span class="label">Your Gogma weapon</span>
-				<p class="hint">Fill in what your weapon has. Leave the set bonus or group skill on "Any" and the forge picks whichever helps most, handy before you reroll.</p>
-				<div class="form-grid">
-					<label for="gogma-type">Type</label>
-					<select id="gogma-type"></select>
-					<label for="gogma-element">Element</label>
-					<select id="gogma-element"></select>
-					<label for="gogma-attack">Attack</label>
-					<span class="number-field"><input type="number" id="gogma-attack" min="0" max="999" step="1" inputmode="numeric" placeholder="e.g. 220"></span>
-					<label for="gogma-affinity">Affinity</label>
-					<span class="number-field"><input type="number" id="gogma-affinity" min="-100" max="100" step="1" inputmode="numeric"><span>%</span></span>
-					<label for="gogma-set">Set bonus</label>
-					<select id="gogma-set"></select>
-					<label for="gogma-group">Group skill</label>
-					<select id="gogma-group"></select>
-					<span>Jewel slots</span>
-					<span class="row">
-						<select id="gogma-slot-0" aria-label="Weapon slot 1"></select>
-						<select id="gogma-slot-1" aria-label="Weapon slot 2"></select>
-						<select id="gogma-slot-2" aria-label="Weapon slot 3"></select>
-					</span>
+					<div class="gear-part">
+						<span class="label">Charm</span>
+						<div id="my-charms" class="wishes"></div>
+						<form id="charm-form" class="charm-form" hidden></form>
+						<div><button type="button" class="btn small" id="add-charm">+ Add my charm</button></div>
+					</div>
 				</div>
-				<p class="hint">Attack and affinity feed the damage numbers. Type and element are shown on each set.</p>
-			</div>
+			</details>
 		</section>
 
 		<section class="panel" aria-labelledby="found-title">
-			<div class="step-title"><span class="step-num">STEP 2</span><h2 id="found-title">Sets that work</h2></div>
+			<h2 class="step-title" id="found-title"><span class="step-num">2</span>Your build</h2>
 			<p id="status" class="status" aria-live="polite"></p>
-			<div id="situations" class="situations"></div>
 			<div id="results" class="results"></div>
-			<div id="more-results"></div>
 
-			<div class="weapon-box">
-				<span class="label">See what other hunters build</span>
+			<div class="online-box">
+				<span class="label">Compare with other hunters</span>
 				<div class="online" id="online-links"></div>
 			</div>
 		</section>

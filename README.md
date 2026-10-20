@@ -1,8 +1,13 @@
 # Wilds Build Forge
 
 A page for Monster Hunter Wilds. Pick the skills you want (for example Heroics 5)
-and it finds armor sets, a charm and jewels that reach them. A second tab lists
-popular builds per weapon; "Use these skills" sends one to the finder.
+and it finds armor sets, a charm and jewels that reach them. A second tab has
+ready-made builds per weapon; "Use this build" sends one to the finder.
+
+The page is built to be easy: step 1 is the skills you want, step 2 is your build.
+Builds show one at a time (‹ › to flip) as two to-do lists, "Wear these" and
+"Put in these jewels", with boxes to tick off while you set it up in the game.
+Your weapon and charm sit in a closed "My gear" section.
 
 Each set shows its damage numbers (affinity, crit damage, attack, a raw damage
 estimate) for the fight situations you switch on, such as "Monster is enraged".
