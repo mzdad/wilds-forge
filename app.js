@@ -1192,38 +1192,82 @@
 		}).join(", ");
 	}
 
-	function whereItGoes(deco) {
-		return deco.kind === "weapon" ? "In the weapon" : "In the armor";
+	// Every jewel slot in the build, with the name of the piece it is on.
+	// The charm's slots are named after the charm, so "In My neck (charm)" is clear.
+	function slotsOf(result) {
+		const charm = result.charm;
+		const charmPlace = charm ? charm.name + " (charm)" : "";
+		const armor = [];
+		for (const piece of result.pieces) {
+			for (const size of piece.slots) {
+				armor.push({ size: size, place: piece.name });
+			}
+		}
+		for (const size of (charm && charm.armorSlots) || []) {
+			armor.push({ size: size, place: charmPlace });
+		}
+		const weaponPlace = state.gogmaWeapon ? "Gogma " + (state.gogma.type || "weapon") : "your weapon";
+		const weapon = weaponSlotsNow().map((size) => ({ size: size, place: weaponPlace }));
+		for (const size of (charm && charm.weaponSlots) || []) {
+			weapon.push({ size: size, place: charmPlace });
+		}
+		return { armor: armor, weapon: weapon };
+	}
+
+	// "Orion Cap α ×2, Udra Miremail γ"
+	function placesText(places) {
+		const counts = new Map();
+		for (const place of places) {
+			counts.set(place, (counts.get(place) || 0) + 1);
+		}
+		return [...counts].map(([place, n]) => (place || "no free slot") + (n > 1 ? " ×" + n : "")).join(", ");
 	}
 
 	// One list: the jewels your skills need first, then extras for more damage
-	// (the biggest boost on top). Below it, anything still to know.
+	// (the biggest boost on top). Each one says exactly which piece it goes in.
 	function jewelSection(analysis) {
 		const result = analysis.result;
 		const smart = analysis.smart;
-		const items = [];
+
+		const entries = [];
 		for (const entry of result.jewels.concat(result.weapon.jewels)) {
 			const gives = entry.deco.skills.map((pair) => index.skillById.get(pair[0]).name).join(" + ");
-			items.push({
-				key: "need-" + entry.deco.id, label: slotBadges([entry.deco.slot], entry.deco.kind), name: jewelName(entry),
-				extra: whereItGoes(entry.deco) + " · for " + gives, side: el("span", { class: "pill", text: "Needed" }),
-			});
+			entries.push({ deco: entry.deco, count: entry.count, key: "need-" + entry.deco.id, what: "for " + gives, side: el("span", { class: "pill", text: "Needed" }) });
 		}
 		for (const entry of smart.picks.slice().sort((a, b) => b.gain - a.gain)) {
-			items.push({
-				key: "extra-" + entry.deco.id, label: slotBadges([entry.deco.slot], entry.deco.kind), name: jewelName(entry),
-				extra: whereItGoes(entry.deco) + " · " + levelChange(entry), side: el("span", { class: "gain", text: percent(entry.gain) + " damage" }),
-			});
+			entries.push({ deco: entry.deco, count: entry.count, key: "extra-" + entry.deco.id, what: levelChange(entry), side: el("span", { class: "gain", text: percent(entry.gain) + " damage" }) });
 		}
+
+		// Armor jewels go in armor slots (and the charm's), weapon jewels in weapon slots (and the charm's).
+		const slots = slotsOf(result);
+		const armorEntries = entries.filter((e) => e.deco.kind !== "weapon");
+		const weaponEntries = entries.filter((e) => e.deco.kind === "weapon");
+		const armorPlaced = Solver.placeJewels(armorEntries, slots.armor);
+		const weaponPlaced = Solver.placeJewels(weaponEntries, slots.weapon);
+		armorEntries.forEach((e, i) => {
+			e.places = armorPlaced.places[i];
+		});
+		weaponEntries.forEach((e, i) => {
+			e.places = weaponPlaced.places[i];
+		});
+
+		const items = entries.map((e) => ({
+			key: e.key,
+			label: slotBadges([e.deco.slot], e.deco.kind),
+			name: jewelName(e),
+			extra: "In " + placesText(e.places) + " · " + e.what,
+			side: e.side,
+		}));
 
 		const parts = [];
 		parts.push(items.length ? checklist(items) : el("p", { class: "muted", text: "No jewels needed." }));
 
-		const left = smart.leftArmorSlots.concat(smart.leftWeaponSlots);
-		if (left.length) {
+		const leftArmor = armorPlaced.left.map((s) => s.size).sort((a, b) => b - a);
+		const leftWeapon = weaponPlaced.left.map((s) => s.size).sort((a, b) => b - a);
+		if (leftArmor.length || leftWeapon.length) {
 			parts.push(el("p", { class: "muted small" }, [
 				"Free slots left ",
-				mixedSlotBadges(smart.leftArmorSlots, smart.leftWeaponSlots),
+				mixedSlotBadges(leftArmor, leftWeapon),
 				" Use them for anything you like, such as Divine Blessing or Evade Window.",
 			]));
 		}

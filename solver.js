@@ -306,6 +306,38 @@
 		return { jewels: countJewels(best.picked.map((o) => o.deco)), missing: missing };
 	}
 
+	// Says which slot each jewel goes in, so the page can say "In Orion Cap α".
+	// jewels: [{ deco, count }]. slots: [{ size, place }], place being any label.
+	// Biggest jewels first, each into the smallest free slot it fits: the same rule as
+	// fitJewels, so whenever the jewels fit, every one of them gets a place.
+	// Returns { places: one list of places per jewel entry, left: the slots still free }.
+	function placeJewels(jewels, slots) {
+		const free = slots.slice();
+		const places = jewels.map(() => []);
+		const units = [];
+		jewels.forEach((entry, i) => {
+			for (let n = 0; n < entry.count; n++) {
+				units.push(i);
+			}
+		});
+		units.sort((a, b) => jewels[b].deco.slot - jewels[a].deco.slot);
+		for (const i of units) {
+			let best = -1;
+			for (let s = 0; s < free.length; s++) {
+				if (free[s].size >= jewels[i].deco.slot && (best === -1 || free[s].size < free[best].size)) {
+					best = s;
+				}
+			}
+			if (best === -1) {
+				places[i].push(null); // does not fit; cannot happen for a set the finder returned
+				continue;
+			}
+			places[i].push(free[best].place);
+			free.splice(best, 1);
+		}
+		return { places: places, left: free };
+	}
+
 	// The level a charm gives in one skill (0 for no charm or not on it).
 	function levelOn(charm, skillId) {
 		if (!charm) {
@@ -710,6 +742,7 @@
 		findSets: findSets,
 		totalSkills: totalSkills,
 		fitJewels: fitJewels,
+		placeJewels: placeJewels,
 		piecesNeeded: piecesNeeded,
 		isPieceCountSkill: isPieceCountSkill,
 		maxLevel: maxLevel,

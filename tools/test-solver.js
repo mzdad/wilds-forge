@@ -161,6 +161,44 @@ check("jewel fit: too many jewels fails", Solver.fitJewels([1, 1, 1], [3, 3]) ==
 		helped.results[0] ? helped.results[0].jewels.map((j) => j.deco.name).join(", ") || "no jewels" : "no sets");
 }
 
+// --- Where each jewel goes ---
+{
+	const deco = (name) => data.decorations.find((d) => d.name === name);
+	// The reported case: two Magazine Jewel [1], a weapon with ③ ② ① and a charm with one ① weapon slot.
+	const placed = Solver.placeJewels(
+		[
+			{ deco: deco("Magazine Jewel [1]"), count: 2 },
+			{ deco: deco("Artillery Jewel III [3]"), count: 1 },
+			{ deco: deco("Critical Jewel II [2]"), count: 1 },
+		],
+		[{ size: 3, place: "weapon" }, { size: 2, place: "weapon" }, { size: 1, place: "weapon" }, { size: 1, place: "charm" }]);
+	check("2 Magazine Jewels: one in the weapon's ① slot, one in the charm's", placed.places[0].join(",") === "weapon,charm", placed.places[0].join(","));
+	check("the big jewels take the big weapon slots", placed.places[1][0] === "weapon" && placed.places[2][0] === "weapon");
+	check("nothing left over when every slot is used", placed.left.length === 0);
+
+	// Every jewel of every found set must get a real place, with your own charm in play.
+	const myCharm = {
+		id: "mine-place", name: "Place charm", rarity: 8, custom: true,
+		skills: [[skillId("Divine Blessing"), 3], [skillId("Attack Boost"), 3]], armorSlots: [1, 1], weaponSlots: [1],
+	};
+	let unplaced = "";
+	for (const build of popular.builds) {
+		const targets = build.skills.map(([name, level]) => ({ skillId: skillId(name), level: level }));
+		const answer = Solver.findSets(index, { targets: targets, weaponSlots: [3, 3, 3], gogmaWeapon: true, customCharms: [myCharm], onlyCharm: myCharm.id });
+		for (const result of answer.results) {
+			const armorSlots = result.pieces.flatMap((p) => p.slots.map((s) => ({ size: s, place: p.name })))
+				.concat(myCharm.armorSlots.map((s) => ({ size: s, place: "charm" })));
+			const weaponSlots = [3, 3, 3].map((s) => ({ size: s, place: "weapon" })).concat([{ size: 1, place: "charm" }]);
+			const armor = Solver.placeJewels(result.jewels, armorSlots);
+			const weapon = Solver.placeJewels(result.weapon.jewels, weaponSlots);
+			if (armor.places.flat().includes(null) || weapon.places.flat().includes(null)) {
+				unplaced = build.name;
+			}
+		}
+	}
+	check("every needed jewel in every ready-made build gets a place (with your charm)", unplaced === "", unplaced);
+}
+
 // --- Your Gogma weapon with a known set bonus and group skill ---
 {
 	const piecesWith = (result, name) => result.pieces.filter((p) => p.skills.some(([id]) => index.skillById.get(id).name === name)).length;
