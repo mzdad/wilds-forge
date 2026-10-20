@@ -9,6 +9,7 @@
 	const effects = window.WILDS_EFFECTS;
 	const Solver = window.WildsSolver;
 	const Stats = window.WildsStats;
+	const Share = window.WildsShare;
 	const index = Solver.makeIndex(data);
 	const SITUATION_LABEL = Object.fromEntries(effects.situations.map((s) => [s.id, s.label]));
 
@@ -996,7 +997,7 @@
 			renderNumbers(view.numbers),
 			situationLine(visible, situationsOn),
 			...renderLists(view, "live-"),
-			saveButton(view),
+			...buildActions(view),
 			moreDetails(analysis),
 		]);
 	}
@@ -1349,7 +1350,18 @@
 	function loadSaved() {
 		try {
 			const list = JSON.parse(localStorage.getItem(SAVED_KEY) || "[]");
-			return Array.isArray(list) ? list.filter((b) => b && b.id && b.view && Array.isArray(b.view.wear)) : [];
+			if (!Array.isArray(list)) {
+				return [];
+			}
+			return list
+				.filter((b) => b && typeof b.id === "string" && Share.cleanView(b.view))
+				.map((b) => ({
+					id: b.id,
+					name: Share.text(b.name, 60) || "My build",
+					savedAt: Share.text(b.savedAt, 40),
+					targets: cleanTargets(b.targets),
+					view: Share.cleanView(b.view),
+				}));
 		} catch (error) {
 			return [];
 		}
@@ -1425,6 +1437,15 @@
 		});
 	}
 
+	function buildActions(view) {
+		const share = shareControls(() => ({
+			name: autoName(),
+			targets: state.targets.map((t) => ({ skillId: t.skillId, level: t.level })),
+			view: view,
+		}));
+		return [el("div", { class: "build-actions" }, [saveButton(view), share.button]), share.panel];
+	}
+
 	function updateSavedTab() {
 		document.getElementById("tab-saved").textContent = savedBuilds.length ? "My builds (" + savedBuilds.length + ")" : "My builds";
 	}
@@ -1472,6 +1493,7 @@
 
 	function savedCard(build) {
 		const open = openSavedId === build.id;
+		const share = shareControls(() => build, "small");
 		const nameField = el("input", {
 			type: "text", class: "saved-name", id: "name-" + build.id, maxlength: "60",
 			value: build.name, "aria-label": "Build name",
@@ -1512,6 +1534,7 @@
 					},
 				}),
 				el("button", { type: "button", class: "btn small", text: "Open in builder", onclick: () => openInBuilder(build) }),
+				share.button,
 				el("button", {
 					type: "button", class: "btn small", text: "Delete",
 					onclick: () => {
@@ -1525,6 +1548,7 @@
 			nameField,
 			el("span", { class: "muted small", text: savedSummary(build) }),
 			el("div", { class: "row" }, actions),
+			deletingSavedId === build.id ? null : share.panel,
 			open
 				? el("div", { class: "build" }, [
 					renderNumbers(build.view.numbers),
@@ -1546,6 +1570,230 @@
 		showTab("build");
 		changed();
 		window.scrollTo({ top: 0, behavior: "smooth" });
+	}
+
+	// ---------- Sharing ----------
+
+	// Share links always point at the public site, so friends can open them. While
+	// testing on this PC (localhost) they point here instead.
+	const PUBLIC_SITE = "https://mzdad.github.io/wilds-forge/";
+
+	function shareBase() {
+		const local = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+		return local ? location.origin + location.pathname : PUBLIC_SITE;
+	}
+
+	async function shareLink(build) {
+		const code = await Share.encode({ v: 1, name: build.name, targets: build.targets, view: build.view });
+		return shareBase() + "#share=" + code;
+	}
+
+	function slotsText(armorSlots, weaponSlots) {
+		const parts = [];
+		if (armorSlots.length) {
+			parts.push("slots " + armorSlots.join(" "));
+		}
+		if (weaponSlots.length) {
+			parts.push("weapon slots " + weaponSlots.join(" "));
+		}
+		return parts.length ? " (" + parts.join(", ") + ")" : "";
+	}
+
+	// The build as plain text, for Discord or a chat message.
+	function shareText(build, link) {
+		const view = build.view;
+		const lines = [build.name + " · Monster Hunter Wilds build"];
+		lines.push(view.numbers.map((n) => n.label + " " + n.value).join(" · ") + " (" + view.situations + ")");
+		lines.push("", "Wear:");
+		for (const w of view.wear) {
+			lines.push("- " + w.label + ": " + w.name + slotsText(w.armorSlots, w.weaponSlots));
+		}
+		lines.push("", "Jewels:");
+		if (!view.jewels.length) {
+			lines.push("- none needed");
+		}
+		for (const j of view.jewels) {
+			lines.push("- " + j.name + " [" + j.slot + "] " + j.extra + (j.needed ? " (needed)" : " (" + j.gain + ")"));
+		}
+		for (const note of view.notes) {
+			lines.push("", "Note: " + note);
+		}
+		lines.push("", "See it: " + link);
+		return lines.join("\n");
+	}
+
+	// A Share button and its panel. The panel fills in when it opens, so the link and
+	// text are ready before you tap Copy (copying must happen right in the tap).
+	function shareControls(getBuild, size) {
+		const panel = el("div", { class: "share-panel", hidden: true });
+		const button = el("button", {
+			type: "button", class: "btn" + (size ? " " + size : ""), text: "Share", "aria-expanded": "false",
+			onclick: async () => {
+				const opening = panel.hidden;
+				panel.hidden = !opening;
+				button.setAttribute("aria-expanded", opening ? "true" : "false");
+				if (opening) {
+					await fillSharePanel(panel, getBuild());
+				}
+			},
+		});
+		return { button: button, panel: panel };
+	}
+
+	async function fillSharePanel(panel, build) {
+		panel.replaceChildren(el("p", { class: "muted small", text: "Making the link…" }));
+		let link;
+		try {
+			link = await shareLink(build);
+		} catch (error) {
+			panel.replaceChildren(el("p", { class: "status warn", text: "Could not make a share link in this browser." }));
+			return;
+		}
+		const text = shareText(build, link);
+		const message = el("p", { class: "share-message", "aria-live": "polite" });
+		// Shown only when copying is not allowed: then you copy from the box yourself.
+		const fallback = el("textarea", { class: "share-text", readonly: true, rows: "6", "aria-label": "Text to copy", hidden: true });
+
+		const copy = (value, done) => {
+			const showBox = () => {
+				fallback.value = value;
+				fallback.hidden = false;
+				fallback.focus();
+				fallback.select();
+				message.textContent = "Copy it from the box below.";
+			};
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				navigator.clipboard.writeText(value).then(() => {
+					fallback.hidden = true;
+					message.textContent = done;
+				}, showBox);
+			} else {
+				showBox();
+			}
+		};
+
+		const buttons = [
+			el("button", { type: "button", class: "btn small primary", text: "Copy link", onclick: () => copy(link, "✓ Link copied. Paste it anywhere.") }),
+			el("button", { type: "button", class: "btn small", text: "Copy as text", onclick: () => copy(text, "✓ Text copied. Paste it in Discord or a chat.") }),
+		];
+		// Phones have their own share menu (Messenger, Discord, ...).
+		if (navigator.share) {
+			buttons.push(el("button", {
+				type: "button", class: "btn small", text: "Share…",
+				onclick: () => {
+					navigator.share({ title: build.name, text: build.name + " · Monster Hunter Wilds build", url: link }).catch(() => {});
+				},
+			}));
+		}
+		panel.replaceChildren(
+			el("p", { class: "muted small", text: "Anyone with the link sees this build exactly like this. Nothing is uploaded: the build is inside the link." }),
+			el("div", { class: "row" }, buttons),
+			message,
+			fallback,
+		);
+	}
+
+	// Skills from a link or old storage: only real skills, levels within range.
+	function cleanTargets(list) {
+		return (Array.isArray(list) ? list : [])
+			.filter((t) => t && index.skillById.has(t.skillId))
+			.slice(0, 20)
+			.map((t) => {
+				const skill = index.skillById.get(t.skillId);
+				return { skillId: skill.id, level: Math.max(1, Math.min(Solver.maxLevel(skill), Math.round(Number(t.level) || 1))) };
+			});
+	}
+
+	// ---------- Opening a shared link ----------
+
+	function shareCodeInAddress() {
+		const match = location.hash.match(/^#share=([A-Za-z0-9_-]+)$/);
+		return match ? match[1] : null;
+	}
+
+	// Takes the "#share=..." off the address, so going back to the forge stays there.
+	function clearShareFromAddress() {
+		if (shareCodeInAddress()) {
+			history.replaceState(null, "", location.pathname + location.search);
+		}
+	}
+
+	async function openSharedBuild(code) {
+		let shared = null;
+		try {
+			const payload = await Share.decode(code);
+			const view = Share.cleanView(payload && payload.view);
+			if (view) {
+				shared = {
+					name: Share.text(payload.name, 60) || "Shared build",
+					targets: cleanTargets(payload.targets),
+					view: view,
+				};
+			}
+		} catch (error) {
+			shared = null;
+		}
+		renderShared(shared);
+		showTab("shared");
+		window.scrollTo({ top: 0 });
+	}
+
+	function backToForge() {
+		clearShareFromAddress();
+		showTab(state.tab === "shared" ? "build" : state.tab);
+	}
+
+	function renderShared(shared) {
+		const box = document.getElementById("shared-build");
+		const back = el("button", { type: "button", class: "btn", text: "Back to the forge", onclick: backToForge });
+		if (!shared) {
+			box.replaceChildren(
+				el("p", { class: "status warn", text: "This share link is broken or cut off. Ask for the link again." }),
+				el("div", {}, back));
+			return;
+		}
+
+		const alreadySaved = savedBuilds.find((b) => sameView(b.view, shared.view));
+		const saveShared = el("button", {
+			type: "button", class: "btn primary", text: alreadySaved ? "✓ In My builds" : "☆ Save to My builds", disabled: alreadySaved ? true : null,
+			onclick: () => {
+				savedBuilds.unshift({
+					id: "build-" + Date.now(),
+					name: uniqueName(shared.name),
+					savedAt: new Date().toISOString(),
+					targets: shared.targets,
+					view: shared.view,
+				});
+				if (storeSaved()) {
+					saveShared.textContent = "✓ In My builds";
+					saveShared.disabled = true;
+					updateSavedTab();
+				} else {
+					savedBuilds.shift();
+					saveShared.textContent = "This browser does not allow saving here";
+				}
+			},
+		});
+		const openButton = shared.targets.length
+			? el("button", {
+				type: "button", class: "btn", text: "Open in builder",
+				onclick: () => {
+					clearShareFromAddress();
+					openInBuilder(shared);
+				},
+			})
+			: null;
+
+		box.replaceChildren(
+			el("span", { class: "label", text: "A build someone shared with you" }),
+			el("h2", { class: "shared-title", text: shared.name }),
+			el("div", { class: "row" }, [saveShared, openButton, back]),
+			el("div", { class: "build" }, [
+				renderNumbers(shared.view.numbers),
+				el("p", { class: "situation-line" }, ["Numbers for: ", el("b", { text: shared.view.situations })]),
+				...renderLists(shared.view, "shared-"),
+			]),
+		);
 	}
 
 	// ---------- More details (closed until asked for) ----------
@@ -1724,23 +1972,39 @@
 
 	// ---------- Tabs ----------
 
+	// "shared" is the page for a build someone sent you. It is not a tab of its own,
+	// and it is not remembered: next visit opens where you were before.
 	function showTab(tab) {
-		state.tab = tab;
-		save();
+		if (tab !== "shared") {
+			state.tab = tab;
+			save();
+		}
 		for (const button of document.querySelectorAll(".tab")) {
 			button.setAttribute("aria-selected", button.dataset.tab === tab ? "true" : "false");
 		}
 		document.getElementById("view-build").hidden = tab !== "build";
 		document.getElementById("view-saved").hidden = tab !== "saved";
 		document.getElementById("view-popular").hidden = tab !== "popular";
+		document.getElementById("view-shared").hidden = tab !== "shared";
 		if (tab === "saved") {
 			renderSaved();
 		}
 	}
 
 	for (const button of document.querySelectorAll(".tab")) {
-		button.addEventListener("click", () => showTab(button.dataset.tab));
+		button.addEventListener("click", () => {
+			clearShareFromAddress();
+			showTab(button.dataset.tab);
+		});
 	}
+
+	// Pasting a share link into a tab that already has the forge open.
+	window.addEventListener("hashchange", () => {
+		const code = shareCodeInAddress();
+		if (code) {
+			openSharedBuild(code);
+		}
+	});
 
 	// ---------- Start ----------
 
@@ -1770,4 +2034,10 @@
 	renderMyCharms();
 	renderOnlineLinks();
 	runSearch();
+
+	// Opened from a share link: show that build first.
+	const sharedCode = shareCodeInAddress();
+	if (sharedCode) {
+		openSharedBuild(sharedCode);
+	}
 })();

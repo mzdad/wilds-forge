@@ -13,6 +13,12 @@ Your weapon and charm sit in a closed "My gear" section.
 cookies: this device only). The "My builds" tab lists them: rename, show, open the
 skills in the builder again, or delete. A saved build always looks as it did when saved.
 
+"Share" (on a build and on each saved build) gives a link, a plain-text version for
+Discord, and on phones the phone's own share menu. The whole build is packed inside
+the link after `#share=` (`share.js`), so nothing is uploaded. Opening such a link
+shows the build with "Save to My builds" and "Open in builder". Everything read from
+a link is checked by `cleanView()` and shown as plain text only.
+
 Each set shows its damage numbers (affinity, crit damage, attack, a raw damage
 estimate) for the fight situations you switch on, such as "Monster is enraged".
 It also picks smart jewels for the free slots: the ones that add the most damage
@@ -41,6 +47,8 @@ Attack and affinity feed the damage numbers.
 | `tools/update-data.js` | Downloads fresh game data into `data.js` |
 | `tools/test-solver.js` | Checks the set finder |
 | `tools/test-stats.js` | Checks the damage numbers against the in-game skill text, and the smart jewels |
+| `share.js` | Packs a build into a share link and checks what comes out of one |
+| `tools/test-share.js` | Checks share links: round trip, broken links, tampered content |
 
 ## Commands
 
