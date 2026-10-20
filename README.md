@@ -13,6 +13,11 @@ You can add your own charms (appraised ones with their own skills, armor slots a
 weapon slots). Tick "Build around this charm" and every set uses it; otherwise it
 competes with the crafted charms. Charms are saved in your browser only.
 
+Tick "I have a Gogma Artian weapon" and a box appears to fill in your weapon: type,
+element, attack, affinity, its set bonus and group skill, and its slots. The set bonus
+and group skill count as one piece each; left on "Any" the forge picks whichever helps.
+Attack and affinity feed the damage numbers.
+
 ## Files
 
 | File | What it is |
@@ -58,6 +63,6 @@ To look at the page on this PC, open `index.html` in a browser.
 - Weapon skills are filled with weapon jewels only. Skills already built into a weapon are not counted.
 - Random charms (appraised "Unknown Charm" etc.) differ per player, so they are only used when you add your own.
 - A Gogma Artian weapon is assumed to add one piece to any one set bonus and one group skill.
-- Raw damage is an estimate for a 200-attack weapon. Element damage is not included, and neither
+- Raw damage is an estimate for your Gogma weapon's attack, or a 200-attack weapon when unknown. Element damage is not included, and neither
   are skills whose in-game text gives no number (Burst, Lord's Soul and others). The page names them.
 - Smart jewels are picked one at a time. A test against trying every weapon combination gave the same result.

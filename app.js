@@ -20,6 +20,11 @@
 	const SEARCH_DELAY_MS = 120;
 
 	const QUICK_PICKS = ["Heroics", "Weakness Exploit", "Agitator", "Lord's Soul", "Burst", "Critical Boost", "Divine Blessing"];
+	const WEAPON_TYPES = [
+		"Great Sword", "Long Sword", "Sword & Shield", "Dual Blades", "Hammer", "Hunting Horn", "Lance",
+		"Gunlance", "Switch Axe", "Charge Blade", "Insect Glaive", "Bow", "Light Bowgun", "Heavy Bowgun",
+	];
+	const ELEMENTS = ["None", "Fire", "Water", "Thunder", "Ice", "Dragon", "Poison", "Paralysis", "Sleep", "Blast"];
 	const KIND_LABEL = { armor: "Armor skill", weapon: "Weapon skill", set: "Set bonus", group: "Group skill" };
 	const PIECE_LABEL = { head: "Head", chest: "Chest", arms: "Arms", waist: "Waist", legs: "Legs" };
 
@@ -33,6 +38,8 @@
 		// Charms you own (appraised ones have their own skills and slots):
 		// { id, name, rarity, skills: [[skillId, level]], armorSlots, weaponSlots, buildAround }
 		myCharms: [],
+		// Your Gogma Artian weapon. Only used while "I have a Gogma Artian weapon" is ticked.
+		gogma: defaultGogma(),
 		situations: effects.defaultSituations.slice(), // fight situations switched on
 		openInfo: null, // skill id whose "where to get it" is open
 		showAll: false,
@@ -127,6 +134,7 @@
 				weaponAffinity: state.weaponAffinity,
 				situations: state.situations,
 				myCharms: state.myCharms,
+				gogma: state.gogma,
 			}));
 		} catch (error) {
 			// Storage can be blocked (private window). The page still works, it just forgets.
@@ -146,6 +154,7 @@
 			state.weaponSlots = Array.isArray(saved.weaponSlots) ? saved.weaponSlots : [3, 3, 3];
 			state.gogmaWeapon = saved.gogmaWeapon !== false;
 			state.weaponAffinity = Number(saved.weaponAffinity) || 0;
+			state.gogma = cleanGogma(saved.gogma);
 			if (Array.isArray(saved.myCharms)) {
 				state.myCharms = saved.myCharms.map(cleanCharm).filter(Boolean);
 			}
@@ -165,6 +174,51 @@
 				switchOnSituationFor(heroics);
 			}
 		}
+	}
+
+	// setId / groupId null means "Any": the forge may pick whichever helps.
+	function defaultGogma() {
+		return { type: "", element: "None", attack: 0, affinity: 0, setId: null, groupId: null, slots: [3, 3, 3] };
+	}
+
+	function clampNumber(value, low, high) {
+		const n = Number(value);
+		return Number.isFinite(n) ? Math.max(low, Math.min(high, n)) : 0;
+	}
+
+	function cleanGogma(saved) {
+		if (!saved || typeof saved !== "object") {
+			return defaultGogma();
+		}
+		const skillOfKind = (id, kind) => {
+			const skill = index.skillById.get(Number(id));
+			return skill && skill.kind === kind ? skill.id : null;
+		};
+		return {
+			type: WEAPON_TYPES.includes(saved.type) ? saved.type : "",
+			element: ELEMENTS.includes(saved.element) ? saved.element : "None",
+			attack: clampNumber(saved.attack, 0, 999),
+			affinity: clampNumber(saved.affinity, -100, 100),
+			setId: skillOfKind(saved.setId, "set"),
+			groupId: skillOfKind(saved.groupId, "group"),
+			slots: Array.isArray(saved.slots)
+				? saved.slots.map(Number).filter((s) => s >= 1 && s <= 3).sort((a, b) => b - a)
+				: [3, 3, 3],
+		};
+	}
+
+	// While the Gogma box is ticked, your Gogma weapon's slots, affinity and attack count.
+	// Otherwise the plain "Weapon jewel slots" and "Weapon affinity" fields do.
+	function weaponSlotsNow() {
+		return state.gogmaWeapon ? state.gogma.slots : state.weaponSlots;
+	}
+
+	function weaponAffinityNow() {
+		return state.gogmaWeapon ? state.gogma.affinity : state.weaponAffinity;
+	}
+
+	function weaponAttackNow() {
+		return state.gogmaWeapon ? state.gogma.attack : 0; // 0 = not known, assume a typical weapon
 	}
 
 	// A saved charm could be from an older page or hand-edited storage, so only keep
@@ -517,8 +571,82 @@
 	});
 	gogmaBox.addEventListener("change", () => {
 		state.gogmaWeapon = gogmaBox.checked;
+		renderGogmaPanel();
 		changed();
 	});
+
+	// ---------- Step 1: your Gogma weapon ----------
+
+	function fillSelect(select, choices, selected) {
+		select.replaceChildren(...choices.map(([value, text]) =>
+			el("option", { value: value, text: text, selected: value === selected ? true : null })));
+	}
+
+	// "Lord's Soul · Guts (Tenacity)" helps people who know the bonus by its effect name.
+	function bonusChoices(kind) {
+		const skills = data.skills.filter((s) => s.kind === kind).sort((a, b) => a.name.localeCompare(b.name));
+		return [["", "Any (the forge picks)"]].concat(skills.map((s) => [String(s.id), s.name + " · " + s.ranks[0].name.replace(/ I$/, "")]));
+	}
+
+	// Fills in the fields from what is saved, and listens for changes. Runs once at start.
+	function setupGogmaPanel() {
+		const g = state.gogma;
+		fillSelect(document.getElementById("gogma-type"), [["", "Pick a type"]].concat(WEAPON_TYPES.map((t) => [t, t])), g.type);
+		fillSelect(document.getElementById("gogma-element"), ELEMENTS.map((e) => [e, e]), g.element);
+		fillSelect(document.getElementById("gogma-set"), bonusChoices("set"), g.setId ? String(g.setId) : "");
+		fillSelect(document.getElementById("gogma-group"), bonusChoices("group"), g.groupId ? String(g.groupId) : "");
+		for (let i = 0; i < 3; i++) {
+			fillSelect(document.getElementById("gogma-slot-" + i), [["", "–"], ["1", "1"], ["2", "2"], ["3", "3"]], g.slots[i] ? String(g.slots[i]) : "");
+		}
+		document.getElementById("gogma-attack").value = g.attack ? String(g.attack) : "";
+		document.getElementById("gogma-affinity").value = String(g.affinity);
+
+		// Type and element are only shown on the sets: redraw, no new search.
+		for (const [id, field] of [["gogma-type", "type"], ["gogma-element", "element"]]) {
+			document.getElementById(id).addEventListener("change", (event) => {
+				g[field] = event.target.value;
+				save();
+				renderResults();
+			});
+		}
+		// Attack and affinity change the numbers, not which armor fits: redraw, no new search.
+		document.getElementById("gogma-attack").addEventListener("input", (event) => {
+			g.attack = clampNumber(event.target.value, 0, 999);
+			save();
+			renderResults();
+		});
+		document.getElementById("gogma-affinity").addEventListener("input", (event) => {
+			g.affinity = clampNumber(event.target.value, -100, 100);
+			save();
+			renderResults();
+		});
+		// Set bonus, group skill and slots change which sets work: search again.
+		document.getElementById("gogma-set").addEventListener("change", (event) => {
+			g.setId = Number(event.target.value) || null;
+			changed();
+		});
+		document.getElementById("gogma-group").addEventListener("change", (event) => {
+			g.groupId = Number(event.target.value) || null;
+			changed();
+		});
+		for (let i = 0; i < 3; i++) {
+			document.getElementById("gogma-slot-" + i).addEventListener("change", () => {
+				g.slots = [0, 1, 2]
+					.map((n) => Number(document.getElementById("gogma-slot-" + n).value))
+					.filter((s) => s > 0)
+					.sort((a, b) => b - a);
+				changed();
+			});
+		}
+	}
+
+	// The Gogma box shows only while the box is ticked. Its slots and affinity then
+	// replace the plain weapon fields, so those hide to avoid two answers to one question.
+	function renderGogmaPanel() {
+		document.getElementById("gogma-box").hidden = !state.gogmaWeapon;
+		document.getElementById("weapon-slots-row").hidden = state.gogmaWeapon;
+		document.getElementById("weapon-affinity-row").hidden = state.gogmaWeapon;
+	}
 
 	// ---------- Step 1: your own charms ----------
 
@@ -760,8 +888,10 @@
 		const around = state.myCharms.find((charm) => charm.buildAround);
 		lastAnswer = Solver.findSets(index, {
 			targets: state.targets,
-			weaponSlots: state.weaponSlots,
+			weaponSlots: weaponSlotsNow(),
 			gogmaWeapon: state.gogmaWeapon,
+			gogmaSet: state.gogma.setId,
+			gogmaGroup: state.gogma.groupId,
 			customCharms: state.myCharms.map(toSolverCharm),
 			onlyCharm: around ? around.id : null,
 		});
@@ -904,8 +1034,9 @@
 		return {
 			result: result,
 			totals: totals,
-			before: Stats.computeStats(index, effects, levels, situationsOn, state.weaponAffinity),
-			smart: Stats.suggestJewels(index, effects, levels, result.freeSlots, result.freeWeaponSlots, situationsOn, state.weaponAffinity),
+			before: Stats.computeStats(index, effects, levels, situationsOn, weaponAffinityNow(), weaponAttackNow()),
+			smart: Stats.suggestJewels(index, effects, levels, result.freeSlots, result.freeWeaponSlots, situationsOn,
+				weaponAffinityNow(), weaponAttackNow()),
 		};
 	}
 
@@ -933,14 +1064,19 @@
 	}
 
 	function statTiles(stats) {
-		let affinitySub = state.weaponAffinity ? "includes weapon " + state.weaponAffinity + "%" : "";
+		const weaponAffinity = weaponAffinityNow();
+		let affinitySub = weaponAffinity ? "includes weapon " + weaponAffinity + "%" : "";
 		if (stats.affinity > 100) {
 			affinitySub = stats.affinity + "% total, the game stops at 100%";
 		}
+		// With your weapon's attack known, show what you hit with: 220 → 268.
+		const attackSub = stats.weaponAttackKnown
+			? stats.weaponAttack + " → " + stats.totalAttack + " total"
+			: "from skills";
 		return el("div", { class: "stat-tiles" }, [
 			statTile("Affinity (crit chance)", stats.affinityShown + "%", affinitySub),
 			statTile("Crit hits", "+" + stats.critDamage + "%", stats.critDamage > Stats.BASE_CRIT_DAMAGE ? "normal is +25%" : "normal crit"),
-			statTile("Attack", attackText(stats), "from skills"),
+			statTile("Attack", attackText(stats), attackSub),
 			statTile("Raw damage", percent(stats.damageGain), "compared to no skills"),
 		]);
 	}
@@ -979,7 +1115,10 @@
 				". They do add damage, but the game gives no exact number, it depends on the weapon, or it is element damage."));
 		}
 		children.push(el("p", { class: "muted" },
-			"Raw damage is an estimate for a typical endgame weapon (" + Stats.TYPICAL_WEAPON_ATTACK + " attack). Element damage comes on top."));
+			(stats.weaponAttackKnown
+				? "Raw damage is an estimate for your weapon (" + stats.weaponAttack + " attack)."
+				: "Raw damage is an estimate for a typical endgame weapon (" + Stats.TYPICAL_WEAPON_ATTACK + " attack).") +
+			" Element damage comes on top."));
 		return children;
 	}
 
@@ -1033,6 +1172,33 @@
 		]);
 	}
 
+	// The weapon line on top of a set: "Gogma Long Sword · Thunder · 220 attack · adds Lord's Soul".
+	function gogmaRow(result) {
+		const g = state.gogma;
+		const details = [];
+		if (g.element && g.element !== "None") {
+			details.push(g.element);
+		}
+		if (g.attack > 0) {
+			details.push(g.attack + " attack");
+		}
+		if (g.affinity) {
+			details.push(g.affinity + "% affinity");
+		}
+		const adds = [result.weaponBonus.set, result.weaponBonus.group].filter(Boolean).map((s) => s.name);
+		if (adds.length) {
+			details.push("adds " + adds.join(" + "));
+		}
+		return el("tr", {}, [
+			el("td", { class: "slot-kind label", text: "Weapon" }),
+			el("td", {}, el("span", { class: "row" }, [
+				el("span", { class: "piece-name", text: "Gogma " + (g.type || "Artian weapon") }),
+				details.length ? el("span", { class: "muted", text: details.join(" · ") }) : null,
+			])),
+			el("td", { class: "slot-cell" }, slotBadges(state.gogma.slots, "weapon")),
+		]);
+	}
+
 	function resultCard(analysis, position) {
 		const result = analysis.result;
 		const smart = analysis.smart;
@@ -1042,6 +1208,9 @@
 			el("td", {}, el("span", { class: "piece-name", text: piece.name })),
 			el("td", { class: "slot-cell" }, slotBadges(piece.slots)),
 		]));
+		if (state.gogmaWeapon) {
+			rows.unshift(gogmaRow(result));
+		}
 		const charm = result.charm;
 		rows.push(el("tr", {}, [
 			el("td", { class: "slot-kind label", text: "Charm" }),
@@ -1078,7 +1247,14 @@
 			]);
 		});
 
-		const bonusNeeded = [result.weaponBonus.set, result.weaponBonus.group].filter(Boolean);
+		// Bonuses left on "Any" that this set relies on: your weapon must roll these.
+		const bonusNeeded = [];
+		if (result.weaponBonus.set && !result.weaponBonus.setFixed) {
+			bonusNeeded.push("set bonus " + result.weaponBonus.set.name);
+		}
+		if (result.weaponBonus.group && !result.weaponBonus.groupFixed) {
+			bonusNeeded.push("group skill " + result.weaponBonus.group.name);
+		}
 
 		return el("article", { class: "result" + (position === 0 ? " best" : "") }, [
 			el("div", { class: "result-head" }, [
@@ -1094,8 +1270,7 @@
 			el("div", { style: "overflow-x:auto" }, el("table", { class: "pieces" }, el("tbody", {}, rows))),
 			neededJewels(result),
 			bonusNeeded.length
-				? el("p", { class: "note" }, "Needs a Gogma Artian weapon that adds " +
-					bonusNeeded.map((s) => s.name).join(" and ") + ".")
+				? el("p", { class: "note" }, "Your Gogma weapon needs " + bonusNeeded.join(" and ") + ".")
 				: null,
 			el("section", { class: "block" }, [
 				el("span", { class: "label", text: "Damage, with the smart jewels" }),
@@ -1224,6 +1399,8 @@
 	}
 	gogmaBox.checked = state.gogmaWeapon;
 	affinityInput.value = String(state.weaponAffinity);
+	setupGogmaPanel();
+	renderGogmaPanel();
 	document.getElementById("data-note").textContent =
 		"Game data from the mhdb project, updated " + formatDate(data.version) + ". It includes the final big update (February 2026).";
 

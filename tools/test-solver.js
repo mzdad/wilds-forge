@@ -161,6 +161,42 @@ check("jewel fit: too many jewels fails", Solver.fitJewels([1, 1, 1], [3, 3]) ==
 		helped.results[0] ? helped.results[0].jewels.map((j) => j.deco.name).join(", ") || "no jewels" : "no sets");
 }
 
+// --- Your Gogma weapon with a known set bonus and group skill ---
+{
+	const piecesWith = (result, name) => result.pieces.filter((p) => p.skills.some(([id]) => index.skillById.get(id).name === name)).length;
+	const gore = skillId("Gore Magala's Tyranny");
+	const lords = skillId("Lord's Soul");
+
+	// The weapon has Lord's Soul, so two armor pieces with it are enough for Guts.
+	const guts = Solver.findSets(index, {
+		targets: [{ skillId: lords, level: 1 }], weaponSlots: [3, 3, 3], gogmaWeapon: true, gogmaSet: gore, gogmaGroup: lords,
+	});
+	const gutsProblem = resultReachesGoals(guts, [{ skillId: lords, level: 1 }]);
+	check("Gogma weapon with Lord's Soul: sets correct", guts.results.length > 0 && gutsProblem === "", gutsProblem);
+	check("Gogma weapon with Lord's Soul: some set needs only 2 Lord's Soul armor pieces",
+		guts.results.some((r) => piecesWith(r, "Lord's Soul") === 2),
+		guts.results.map((r) => piecesWith(r, "Lord's Soul")).join(","));
+	check("Gogma weapon's bonus is marked as fixed", guts.results.every((r) => r.weaponBonus.groupFixed && r.weaponBonus.setFixed));
+	const totals = Solver.totalSkills(index, guts.results[0]);
+	check("the weapon's own set bonus counts even when not wished",
+		totals.some((e) => e.skill.id === gore && e.pieces >= 1), String((totals.find((e) => e.skill.id === gore) || {}).pieces));
+
+	// The weapon has Gore Magala's Tyranny, so it cannot help with Gogmapocalypse: 4 armor pieces needed.
+	const gogma = Solver.findSets(index, {
+		targets: [{ skillId: skillId("Gogmapocalypse"), level: 2 }], weaponSlots: [3, 3, 3], gogmaWeapon: true, gogmaSet: gore, gogmaGroup: lords,
+	});
+	check("Gogma weapon with another set bonus: Gogmapocalypse II needs 4 armor pieces",
+		gogma.results.length > 0 && gogma.results.every((r) => piecesWith(r, "Gogmapocalypse") >= 4),
+		gogma.results.map((r) => piecesWith(r, "Gogmapocalypse")).join(","));
+
+	// Left on "any", the same wish can use the weapon for the 4th piece.
+	const flexible = Solver.findSets(index, {
+		targets: [{ skillId: skillId("Gogmapocalypse"), level: 2 }], weaponSlots: [3, 3, 3], gogmaWeapon: true,
+	});
+	check("Gogma weapon left on 'any': results stay correct",
+		flexible.results.length > 0 && resultReachesGoals(flexible, [{ skillId: skillId("Gogmapocalypse"), level: 2 }]) === "");
+}
+
 // --- Every popular build: names must exist, and the finder should cope ---
 for (const build of popular.builds) {
 	const unknown = build.skills.filter(([name]) => skillId(name) === null).map(([name]) => name);

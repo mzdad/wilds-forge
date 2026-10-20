@@ -282,6 +282,14 @@
 		border: 1px solid var(--line); background: var(--panel); color: var(--fg); min-width: 0;
 	}
 	.charm-form select:disabled { opacity: 0.5; }
+
+	/* Your Gogma weapon: labels left, fields right */
+	.form-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 12px; align-items: center; font-size: 0.94rem; }
+	.form-grid select {
+		font: 500 0.94rem var(--font-body); padding: 6px 8px; border-radius: 6px;
+		border: 1px solid var(--line); background: var(--panel-2); color: var(--fg); min-width: 0; max-width: 100%;
+	}
+	.form-grid > select { width: 100%; }
 	.charm-form .status:empty { display: none; }
 
 	/* ---------- Results ---------- */
@@ -410,7 +418,7 @@
 			<div class="wishes" id="wishes"></div>
 
 			<div class="options">
-				<div class="option">
+				<div class="option" id="weapon-slots-row">
 					<label for="weapon-slots">Weapon jewel slots</label>
 					<select id="weapon-slots">
 						<option value="3,3,3">3 · 3 · 3 (Artian or Gogma weapon)</option>
@@ -420,7 +428,7 @@
 						<option value="">No weapon jewels</option>
 					</select>
 				</div>
-				<div class="option">
+				<div class="option" id="weapon-affinity-row">
 					<label for="weapon-affinity">Weapon affinity</label>
 					<span class="number-field"><input type="number" id="weapon-affinity" min="-100" max="100" step="5" inputmode="numeric"><span>%</span></span>
 					<span class="hint">The number on your weapon, for the damage numbers.</span>
@@ -429,7 +437,7 @@
 					<input type="checkbox" id="gogma">
 					<label for="gogma">I have a Gogma Artian weapon</label>
 				</div>
-				<p class="hint">A Gogma Artian weapon counts as one extra piece for one set bonus and one group skill. That makes some top builds possible with only five armor pieces.</p>
+				<p class="hint">A Gogma Artian weapon counts as one extra piece for one set bonus and one group skill. That makes some top builds possible with only five armor pieces. Tick it to fill in your weapon below.</p>
 			</div>
 
 			<div class="options">
@@ -438,6 +446,32 @@
 				<div id="my-charms" class="wishes"></div>
 				<form id="charm-form" class="charm-form" hidden></form>
 				<div><button type="button" class="btn small" id="add-charm">+ Add your own charm</button></div>
+			</div>
+
+			<div class="options" id="gogma-box" hidden>
+				<span class="label">Your Gogma weapon</span>
+				<p class="hint">Fill in what your weapon has. Leave the set bonus or group skill on "Any" and the forge picks whichever helps most, handy before you reroll.</p>
+				<div class="form-grid">
+					<label for="gogma-type">Type</label>
+					<select id="gogma-type"></select>
+					<label for="gogma-element">Element</label>
+					<select id="gogma-element"></select>
+					<label for="gogma-attack">Attack</label>
+					<span class="number-field"><input type="number" id="gogma-attack" min="0" max="999" step="1" inputmode="numeric" placeholder="e.g. 220"></span>
+					<label for="gogma-affinity">Affinity</label>
+					<span class="number-field"><input type="number" id="gogma-affinity" min="-100" max="100" step="1" inputmode="numeric"><span>%</span></span>
+					<label for="gogma-set">Set bonus</label>
+					<select id="gogma-set"></select>
+					<label for="gogma-group">Group skill</label>
+					<select id="gogma-group"></select>
+					<span>Jewel slots</span>
+					<span class="row">
+						<select id="gogma-slot-0" aria-label="Weapon slot 1"></select>
+						<select id="gogma-slot-1" aria-label="Weapon slot 2"></select>
+						<select id="gogma-slot-2" aria-label="Weapon slot 3"></select>
+					</span>
+				</div>
+				<p class="hint">Attack and affinity feed the damage numbers. Type and element are shown on each set.</p>
 			</div>
 		</section>
 

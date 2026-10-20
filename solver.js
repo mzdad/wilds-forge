@@ -344,6 +344,16 @@
 		const need = goals.map((goal) => goal.need);
 		const firstPieceGoal = armorGoals.length;
 
+		// A Gogma Artian weapon adds one piece to one set bonus and one to one group skill.
+		// If you entered which ones your weapon has, it adds exactly those. Left on "any",
+		// the search may pick whichever helps (handy before you reroll).
+		const fixedSetId = allowWeaponBonus && request.gogmaSet ? request.gogmaSet : null;
+		const fixedGroupId = allowWeaponBonus && request.gogmaGroup ? request.gogmaGroup : null;
+		const flexibleSet = allowWeaponBonus && !fixedSetId;
+		const flexibleGroup = allowWeaponBonus && !fixedGroupId;
+		const fixedSetSkill = fixedSetId ? index.skillById.get(fixedSetId) || null : null;
+		const fixedGroupSkill = fixedGroupId ? index.skillById.get(fixedGroupId) || null : null;
+
 		const weaponSlots = request.weaponSlots || [3, 3, 3];
 		// Your own charms: { id, name, rarity, skills, armorSlots, weaponSlots, custom: true }.
 		const customCharms = request.customCharms || [];
@@ -437,6 +447,12 @@
 
 		const results = [];
 		const current = new Array(goals.length).fill(0);
+		// Your Gogma weapon's own set bonus and group skill count from the start.
+		pieceGoals.forEach((goal, j) => {
+			if (goal.skill.id === fixedSetId || goal.skill.id === fixedGroupId) {
+				current[firstPieceGoal + j] = 1;
+			}
+		});
 		const chosen = [];
 		let setsChecked = 0;
 		let timedOut = false;
@@ -445,7 +461,8 @@
 			const gains = stillPossible[depth];
 			// Set bonuses and group skills: only armor (and one weapon bonus) can give them.
 			for (let i = firstPieceGoal; i < goals.length; i++) {
-				const weaponHelp = allowWeaponBonus ? 1 : 0;
+				const isSet = pieceGoals[i - firstPieceGoal].skill.kind === "set";
+				const weaponHelp = (isSet ? flexibleSet : flexibleGroup) ? 1 : 0;
 				if (current[i] + gains[i] + weaponHelp < need[i]) {
 					return false;
 				}
@@ -481,16 +498,16 @@
 				if (short <= 0) {
 					continue;
 				}
-				if (short > 1 || !allowWeaponBonus) {
+				if (short > 1) {
 					return;
 				}
 				if (pieceGoals[j].skill.kind === "set") {
-					if (setShort) {
+					if (!flexibleSet || setShort) {
 						return;
 					}
 					setShort = pieceGoals[j].skill;
 				} else {
-					if (groupShort) {
+					if (!flexibleGroup || groupShort) {
 						return;
 					}
 					groupShort = pieceGoals[j].skill;
@@ -557,7 +574,14 @@
 				freeSlots: best.freeSlots, // free armor slots, including the charm's
 				weapon: best.weapon, // weapon jewels, missing weapon skills and free weapon slots
 				freeWeaponSlots: best.weapon.freeSlots,
-				weaponBonus: { set: setShort, group: groupShort },
+				// What the Gogma weapon adds. "fixed" = your weapon has it; otherwise the set
+				// needs a weapon that rolls it.
+				weaponBonus: {
+					set: fixedSetSkill || setShort,
+					group: fixedGroupSkill || groupShort,
+					setFixed: !!fixedSetSkill,
+					groupFixed: !!fixedGroupSkill,
+				},
 				defense: defense,
 				score: best.score,
 			});

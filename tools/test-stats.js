@@ -92,6 +92,17 @@ check("every 'excludes' names a real situation", badExcludes.length === 0, badEx
 	check("Heroics does nothing at full health", healthy.attackPct === 0 && healthy.damageGain === 0);
 }
 {
+	const levels = levelsOf([["Attack Boost", 5]]);
+	const typical = Stats.computeStats(index, effects, levels, new Set(), 0);
+	check("without a weapon attack, a 200-attack weapon is assumed: 200 x 1.04 + 9 = 217", typical.totalAttack === 217, String(typical.totalAttack));
+	const own = Stats.computeStats(index, effects, levels, new Set(), 0, 250);
+	check("with your weapon's attack 250: 250 x 1.04 + 9 = 269", own.totalAttack === 269 && own.weaponAttackKnown, String(own.totalAttack));
+	const flat = levelsOf([["Agitator", 5]]);
+	const low = Stats.computeStats(index, effects, flat, new Set(["enraged"]), 0, 150).damageGain;
+	const high = Stats.computeStats(index, effects, flat, new Set(["enraged"]), 0, 300).damageGain;
+	check("flat attack (+20) matters more on a weaker weapon", low > high, (low * 100).toFixed(1) + "% vs " + (high * 100).toFixed(1) + "%");
+}
+{
 	const levels = levelsOf([["Critical Eye", 5], ["Latent Power", 5], ["Maximum Might", 3]]);
 	const capped = Stats.computeStats(index, effects, levels, new Set(["latent", "fullStamina"]), 20);
 	check("affinity shown is capped at 100%", capped.affinityShown === 100, capped.affinity + "% raw");

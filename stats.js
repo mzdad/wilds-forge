@@ -12,15 +12,17 @@
 
 	const BASE_CRIT_DAMAGE = 25; // a normal critical hit does 25% more damage
 	const FEEBLE_HIT_DAMAGE = -25; // with negative affinity, "feeble" hits do 25% less
-	// Only used to weigh flat attack (+20) against percent attack (+10%).
-	// 200 is about what an endgame weapon has. The page never shows it as your attack.
+	// Used to weigh flat attack (+20) against percent attack (+10%) when you have not
+	// entered your weapon's attack. 200 is about what an endgame weapon has.
 	const TYPICAL_WEAPON_ATTACK = 200;
 	// Jewels that add less damage than this are not worth suggesting.
 	const SMALLEST_USEFUL_GAIN = 0.0005;
 
 	// Adds up every active skill part. levels is a Map of skillId -> level.
 	// situationsOn is a Set of situation ids. Returns totals plus one line per part.
-	function computeStats(index, effects, levels, situationsOn, weaponAffinity) {
+	// weaponAttack is optional: without it a typical endgame weapon is assumed.
+	function computeStats(index, effects, levels, situationsOn, weaponAffinity, weaponAttack) {
+		const baseAttack = weaponAttack > 0 ? weaponAttack : TYPICAL_WEAPON_ATTACK;
 		const stats = {
 			attack: 0,
 			attackPct: 0,
@@ -66,7 +68,11 @@
 		}
 
 		stats.affinityShown = Math.max(-100, Math.min(100, stats.affinity));
-		stats.damageGain = damageOf(stats) / damageOf({ attack: 0, attackPct: 0, affinity: weaponAffinity || 0, critDamage: BASE_CRIT_DAMAGE }) - 1;
+		stats.weaponAttack = baseAttack;
+		stats.weaponAttackKnown = weaponAttack > 0;
+		// Your attack in a fight: weapon attack raised by the % skills, plus the flat ones.
+		stats.totalAttack = Math.round(baseAttack * (1 + stats.attackPct / 100) + stats.attack);
+		stats.damageGain = damageOf(stats, baseAttack) / damageOf({ attack: 0, attackPct: 0, affinity: weaponAffinity || 0, critDamage: BASE_CRIT_DAMAGE }, baseAttack) - 1;
 		return stats;
 	}
 
@@ -78,8 +84,8 @@
 		return list[Math.min(level, list.length) - 1] || 0;
 	}
 
-	function damageOf(totals) {
-		const attack = TYPICAL_WEAPON_ATTACK * (1 + totals.attackPct / 100) + totals.attack;
+	function damageOf(totals, baseAttack) {
+		const attack = baseAttack * (1 + totals.attackPct / 100) + totals.attack;
 		const affinity = Math.max(-100, Math.min(100, totals.affinity)) / 100;
 		const critBonus = affinity >= 0
 			? 1 + affinity * (totals.critDamage / 100)
@@ -101,7 +107,7 @@
 	// Fills free slots one jewel at a time, each time taking the jewel that adds the
 	// most damage right now, and putting it in the smallest free slot it fits.
 	// Armor jewels go in armor slots, weapon jewels in weapon slots.
-	function suggestJewels(index, effects, levels, freeArmorSlots, freeWeaponSlots, situationsOn, weaponAffinity) {
+	function suggestJewels(index, effects, levels, freeArmorSlots, freeWeaponSlots, situationsOn, weaponAffinity, weaponAttack) {
 		const free = { armor: freeArmorSlots.slice(), weapon: freeWeaponSlots.slice() };
 		const candidates = index.data.decorations.filter((deco) =>
 			deco.skills.some((pair) => {
@@ -110,7 +116,7 @@
 			}));
 
 		let current = new Map(levels);
-		let currentDamage = computeStats(index, effects, current, situationsOn, weaponAffinity).damageGain;
+		let currentDamage = computeStats(index, effects, current, situationsOn, weaponAffinity, weaponAttack).damageGain;
 		const picks = [];
 
 		while (true) {
@@ -121,7 +127,7 @@
 					continue;
 				}
 				const next = withJewel(index, current, deco);
-				const gain = computeStats(index, effects, next, situationsOn, weaponAffinity).damageGain - currentDamage;
+				const gain = computeStats(index, effects, next, situationsOn, weaponAffinity, weaponAttack).damageGain - currentDamage;
 				const better = !best ||
 					gain > best.gain + 1e-9 ||
 					// Same gain: the smaller jewel leaves bigger slots for later.
@@ -149,7 +155,7 @@
 		return {
 			picks: groupPicks(picks),
 			levels: current,
-			stats: computeStats(index, effects, current, situationsOn, weaponAffinity),
+			stats: computeStats(index, effects, current, situationsOn, weaponAffinity, weaponAttack),
 			leftArmorSlots: free.armor.sort((a, b) => b - a),
 			leftWeaponSlots: free.weapon.sort((a, b) => b - a),
 		};
