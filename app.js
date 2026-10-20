@@ -147,7 +147,7 @@
 			saved = null;
 		}
 		if (saved && Array.isArray(saved.targets)) {
-			state.tab = saved.tab === "popular" ? "popular" : "build";
+			state.tab = ["build", "saved", "popular"].includes(saved.tab) ? saved.tab : "build";
 			state.targets = saved.targets.filter((t) => index.skillById.has(t.skillId));
 			state.weaponSlots = Array.isArray(saved.weaponSlots) ? saved.weaponSlots : [3, 3, 3];
 			state.gogmaWeapon = saved.gogmaWeapon !== false;
@@ -991,17 +991,31 @@
 	}
 
 	function buildCard(analysis, visible, situationsOn) {
-		const result = analysis.result;
-		const stats = analysis.smart.stats;
+		const view = buildView(analysis, situationsOn);
 		return el("article", { class: "build" }, [
-			numberTiles(stats),
+			renderNumbers(view.numbers),
 			situationLine(visible, situationsOn),
-			el("h3", { class: "todo-title" }, ["Wear these", el("span", { class: "muted small", text: "Defense " + result.defense })]),
-			checklist(wearItems(result)),
-			el("h3", { class: "todo-title" }, ["Put in these jewels"]),
-			...jewelSection(analysis),
+			...renderLists(view, "live-"),
+			saveButton(view),
 			moreDetails(analysis),
 		]);
+	}
+
+	// Everything a build shows, as plain data (no page elements). The live build is drawn
+	// from it, and "Save this build" stores exactly this, so a saved build looks the same later.
+	function buildView(analysis, situationsOn) {
+		const names = effects.situations.filter((s) => situationsOn.has(s.id)).map((s) => s.short || s.label);
+		const jewels = jewelData(analysis);
+		return {
+			numbers: numbersData(analysis.smart.stats),
+			situations: names.length ? names.join(", ") : "normal hits",
+			defense: analysis.result.defense,
+			wear: wearData(analysis.result),
+			jewels: jewels.jewels,
+			leftArmor: jewels.leftArmor,
+			leftWeapon: jewels.leftWeapon,
+			notes: jewels.notes,
+		};
 	}
 
 	// ---------- The three big numbers ----------
@@ -1021,27 +1035,27 @@
 		return parts.length ? parts.join(" & ") : "+0";
 	}
 
-	function statTile(label, value, sub) {
-		return el("div", { class: "stat" }, [
-			el("span", { class: "label", text: label }),
-			el("span", { class: "stat-value", text: value }),
-			sub ? el("span", { class: "stat-sub", text: sub }) : null,
-		]);
-	}
-
-	function numberTiles(stats) {
+	function numbersData(stats) {
 		const critSub = stats.affinity > 100
 			? "capped at 100%"
 			: "crits hit +" + stats.critDamage + "%";
 		// With your weapon's attack known, show the attack you actually hit with.
 		const attack = stats.weaponAttackKnown
-			? statTile("Attack", String(stats.totalAttack), "weapon " + stats.weaponAttack + " " + attackText(stats))
-			: statTile("Attack", attackText(stats), "from skills");
-		return el("div", { class: "stat-tiles" }, [
-			statTile("Crit chance", stats.affinityShown + "%", critSub),
+			? { label: "Attack", value: String(stats.totalAttack), sub: "weapon " + stats.weaponAttack + " " + attackText(stats) }
+			: { label: "Attack", value: attackText(stats), sub: "from skills" };
+		return [
+			{ label: "Crit chance", value: stats.affinityShown + "%", sub: critSub },
 			attack,
-			statTile("Damage", percent(stats.damageGain), "vs no skills"),
-		]);
+			{ label: "Damage", value: percent(stats.damageGain), sub: "vs no skills" },
+		];
+	}
+
+	function renderNumbers(numbers) {
+		return el("div", { class: "stat-tiles" }, numbers.map((n) => el("div", { class: "stat" }, [
+			el("span", { class: "label", text: n.label }),
+			el("span", { class: "stat-value", text: n.value }),
+			n.sub ? el("span", { class: "stat-sub", text: n.sub }) : null,
+		])));
 	}
 
 	// ---------- Fight situations ----------
@@ -1117,20 +1131,57 @@
 
 	// ---------- To-do lists ----------
 
+	// "Wear these" and "Put in these jewels", drawn from a build's plain data.
+	// tickPrefix keeps ticks of the live build and of each saved build apart.
+	function renderLists(view, tickPrefix) {
+		const parts = [
+			el("h3", { class: "todo-title" }, ["Wear these", el("span", { class: "muted small", text: "Defense " + view.defense })]),
+			checklist(view.wear.map((w) => ({
+				key: w.key,
+				label: w.label,
+				name: w.name,
+				extra: w.extra,
+				side: w.armorSlots.length || w.weaponSlots.length ? mixedSlotBadges(w.armorSlots, w.weaponSlots) : null,
+			})), tickPrefix),
+			el("h3", { class: "todo-title" }, ["Put in these jewels"]),
+		];
+		parts.push(view.jewels.length
+			? checklist(view.jewels.map((j) => ({
+				key: j.key,
+				label: slotBadges([j.slot], j.kind),
+				name: j.name,
+				extra: j.extra,
+				side: j.needed ? el("span", { class: "pill", text: "Needed" }) : el("span", { class: "gain", text: j.gain }),
+			})), tickPrefix)
+			: el("p", { class: "muted", text: "No jewels needed." }));
+		if (view.leftArmor.length || view.leftWeapon.length) {
+			parts.push(el("p", { class: "muted small" }, [
+				"Free slots left ",
+				mixedSlotBadges(view.leftArmor, view.leftWeapon),
+				" Use them for anything you like, such as Divine Blessing or Evade Window.",
+			]));
+		}
+		for (const note of view.notes) {
+			parts.push(el("p", { class: "note", text: note }));
+		}
+		return parts;
+	}
+
 	// Rows you can tick off while you set it up in the game. Ticking only changes the
 	// look of the row, so the page does not redraw and keyboard focus stays put.
-	function checklist(items) {
+	function checklist(items, tickPrefix) {
 		return el("ul", { class: "checklist" }, items.map((item) => {
-			const row = el("li", { class: ticked.has(item.key) ? "done" : "" });
+			const key = tickPrefix + item.key;
+			const row = el("li", { class: ticked.has(key) ? "done" : "" });
 			const box = el("input", {
 				type: "checkbox",
-				checked: ticked.has(item.key) ? true : null,
+				checked: ticked.has(key) ? true : null,
 				"aria-label": "Done: " + item.name,
 				onchange: () => {
 					if (box.checked) {
-						ticked.add(item.key);
+						ticked.add(key);
 					} else {
-						ticked.delete(item.key);
+						ticked.delete(key);
 					}
 					row.classList.toggle("done", box.checked);
 				},
@@ -1151,8 +1202,9 @@
 		}));
 	}
 
-	function wearItems(result) {
-		const items = [];
+	// The "Wear these" rows as plain data: what to wear and its slots.
+	function wearData(result) {
+		const rows = [];
 		if (state.gogmaWeapon) {
 			const g = state.gogma;
 			const details = [];
@@ -1163,21 +1215,21 @@
 			if (adds.length) {
 				details.push("adds " + adds.join(" + "));
 			}
-			items.push({ key: "weapon", label: "Weapon", name: "Gogma " + (g.type || "Artian weapon"), extra: details.join(" · "), side: slotBadges(g.slots, "weapon") });
+			rows.push({ key: "weapon", label: "Weapon", name: "Gogma " + (g.type || "Artian weapon"), extra: details.join(" · "), armorSlots: [], weaponSlots: g.slots.slice() });
 		} else if (weaponSlotsNow().length) {
-			items.push({ key: "weapon", label: "Weapon", name: "Any weapon with these slots", side: slotBadges(weaponSlotsNow(), "weapon") });
+			rows.push({ key: "weapon", label: "Weapon", name: "Any weapon with these slots", extra: "", armorSlots: [], weaponSlots: weaponSlotsNow().slice() });
 		}
 		for (const piece of result.pieces) {
-			items.push({ key: "piece-" + piece.id, label: PIECE_LABEL[piece.kind], name: piece.name, side: slotBadges(piece.slots) });
+			rows.push({ key: "piece-" + piece.id, label: PIECE_LABEL[piece.kind], name: piece.name, extra: "", armorSlots: piece.slots.slice(), weaponSlots: [] });
 		}
 		const charm = result.charm;
-		items.push(charm
+		rows.push(charm
 			? {
 				key: "charm", label: "Charm", name: charm.name, extra: charm.custom ? "your own charm" : "",
-				side: charm.custom ? mixedSlotBadges(charm.armorSlots, charm.weaponSlots) : null,
+				armorSlots: charm.custom ? charm.armorSlots.slice() : [], weaponSlots: charm.custom ? charm.weaponSlots.slice() : [],
 			}
-			: { key: "charm", label: "Charm", name: "Any charm you like" });
-		return items;
+			: { key: "charm", label: "Charm", name: "Any charm you like", extra: "", armorSlots: [], weaponSlots: [] });
+		return rows;
 	}
 
 	// The slot badge already shows the size, so drop the "[2]" from the name.
@@ -1223,19 +1275,19 @@
 		return [...counts].map(([place, n]) => (place || "no free slot") + (n > 1 ? " ×" + n : "")).join(", ");
 	}
 
-	// One list: the jewels your skills need first, then extras for more damage
-	// (the biggest boost on top). Each one says exactly which piece it goes in.
-	function jewelSection(analysis) {
+	// The jewel list as plain data: the jewels your skills need first, then extras for
+	// more damage (the biggest boost on top). Each one says exactly which piece it goes in.
+	function jewelData(analysis) {
 		const result = analysis.result;
 		const smart = analysis.smart;
 
 		const entries = [];
 		for (const entry of result.jewels.concat(result.weapon.jewels)) {
 			const gives = entry.deco.skills.map((pair) => index.skillById.get(pair[0]).name).join(" + ");
-			entries.push({ deco: entry.deco, count: entry.count, key: "need-" + entry.deco.id, what: "for " + gives, side: el("span", { class: "pill", text: "Needed" }) });
+			entries.push({ deco: entry.deco, count: entry.count, key: "need-" + entry.deco.id, what: "for " + gives, needed: true, gain: "" });
 		}
 		for (const entry of smart.picks.slice().sort((a, b) => b.gain - a.gain)) {
-			entries.push({ deco: entry.deco, count: entry.count, key: "extra-" + entry.deco.id, what: levelChange(entry), side: el("span", { class: "gain", text: percent(entry.gain) + " damage" }) });
+			entries.push({ deco: entry.deco, count: entry.count, key: "extra-" + entry.deco.id, what: levelChange(entry), needed: false, gain: percent(entry.gain) + " damage" });
 		}
 
 		// Armor jewels go in armor slots (and the charm's), weapon jewels in weapon slots (and the charm's).
@@ -1251,31 +1303,11 @@
 			e.places = weaponPlaced.places[i];
 		});
 
-		const items = entries.map((e) => ({
-			key: e.key,
-			label: slotBadges([e.deco.slot], e.deco.kind),
-			name: jewelName(e),
-			extra: "In " + placesText(e.places) + " · " + e.what,
-			side: e.side,
-		}));
-
-		const parts = [];
-		parts.push(items.length ? checklist(items) : el("p", { class: "muted", text: "No jewels needed." }));
-
-		const leftArmor = armorPlaced.left.map((s) => s.size).sort((a, b) => b - a);
-		const leftWeapon = weaponPlaced.left.map((s) => s.size).sort((a, b) => b - a);
-		if (leftArmor.length || leftWeapon.length) {
-			parts.push(el("p", { class: "muted small" }, [
-				"Free slots left ",
-				mixedSlotBadges(leftArmor, leftWeapon),
-				" Use them for anything you like, such as Divine Blessing or Evade Window.",
-			]));
-		}
+		const notes = [];
 		if (result.weapon.missing.length) {
-			parts.push(el("p", { class: "note" },
-				"Your weapon has no room for: " +
+			notes.push("Your weapon has no room for: " +
 				result.weapon.missing.map((m) => m.skill.name + " +" + m.levels).join(", ") +
-				". Pick a weapon that has it built in."));
+				". Pick a weapon that has it built in.");
 		}
 		// Bonuses left on "Any" that this build relies on: your weapon must roll these.
 		const bonusNeeded = [];
@@ -1286,9 +1318,234 @@
 			bonusNeeded.push("group skill " + result.weaponBonus.group.name);
 		}
 		if (bonusNeeded.length) {
-			parts.push(el("p", { class: "note" }, "Your Gogma weapon needs " + bonusNeeded.join(" and ") + "."));
+			notes.push("Your Gogma weapon needs " + bonusNeeded.join(" and ") + ".");
 		}
-		return parts;
+
+		return {
+			jewels: entries.map((e) => ({
+				key: e.key,
+				slot: e.deco.slot,
+				kind: e.deco.kind,
+				name: jewelName(e),
+				extra: "In " + placesText(e.places) + " · " + e.what,
+				needed: e.needed,
+				gain: e.gain,
+			})),
+			leftArmor: armorPlaced.left.map((s) => s.size).sort((a, b) => b - a),
+			leftWeapon: weaponPlaced.left.map((s) => s.size).sort((a, b) => b - a),
+			notes: notes,
+		};
+	}
+
+	// ---------- Saved builds ("My builds") ----------
+
+	// Saved builds live in this browser's storage (like cookies): only on this device.
+	const SAVED_KEY = "wilds-build-forge-saved-v1";
+	// Newest first: [{ id, name, savedAt, targets, view }]
+	let savedBuilds = loadSaved();
+	let openSavedId = null; // the saved build that is unfolded on My builds
+	let deletingSavedId = null; // the saved build showing "Delete for good?"
+
+	function loadSaved() {
+		try {
+			const list = JSON.parse(localStorage.getItem(SAVED_KEY) || "[]");
+			return Array.isArray(list) ? list.filter((b) => b && b.id && b.view && Array.isArray(b.view.wear)) : [];
+		} catch (error) {
+			return [];
+		}
+	}
+
+	// Returns false when the browser does not allow saving (private window, blocked storage).
+	function storeSaved() {
+		try {
+			localStorage.setItem(SAVED_KEY, JSON.stringify(savedBuilds));
+			return true;
+		} catch (error) {
+			return false;
+		}
+	}
+
+	// "Heroics 5 · Agitator 5 · Lord's Soul". Up to three skills, then "+2 more".
+	function autoName() {
+		const parts = state.targets.slice(0, 3).map((t) => {
+			const skill = index.skillById.get(t.skillId);
+			return Solver.isPieceCountSkill(skill) ? skill.name : skill.name + " " + t.level;
+		});
+		if (state.targets.length > 3) {
+			parts.push("+" + (state.targets.length - 3) + " more");
+		}
+		return parts.join(" · ") || "My build";
+	}
+
+	// A second "Heroics 5" becomes "Heroics 5 (2)", so saved builds are easy to tell apart.
+	function uniqueName(name) {
+		const taken = new Set(savedBuilds.map((b) => b.name));
+		if (!taken.has(name)) {
+			return name;
+		}
+		let n = 2;
+		while (taken.has(name + " (" + n + ")")) {
+			n += 1;
+		}
+		return name + " (" + n + ")";
+	}
+
+	function sameView(a, b) {
+		return JSON.stringify(a) === JSON.stringify(b);
+	}
+
+	function saveButton(view) {
+		const already = savedBuilds.find((b) => sameView(b.view, view));
+		if (already) {
+			return el("p", { class: "saved-line" }, [
+				"✓ Saved as ", el("b", { text: already.name }), " ",
+				el("button", { type: "button", class: "linkish", text: "See My builds", onclick: () => showSaved(already.id) }),
+			]);
+		}
+		return el("button", {
+			type: "button", class: "btn primary wide", text: "☆ Save this build",
+			onclick: () => {
+				const build = {
+					id: "build-" + Date.now(),
+					name: uniqueName(autoName()),
+					savedAt: new Date().toISOString(),
+					targets: state.targets.map((t) => ({ skillId: t.skillId, level: t.level })),
+					view: view,
+				};
+				savedBuilds.unshift(build);
+				if (!storeSaved()) {
+					savedBuilds.shift();
+					document.getElementById("status").className = "status warn";
+					document.getElementById("status").textContent = "This browser does not allow saving here (maybe a private window).";
+					return;
+				}
+				updateSavedTab();
+				renderResults();
+			},
+		});
+	}
+
+	function updateSavedTab() {
+		document.getElementById("tab-saved").textContent = savedBuilds.length ? "My builds (" + savedBuilds.length + ")" : "My builds";
+	}
+
+	// Go to My builds with one build unfolded.
+	function showSaved(buildId) {
+		openSavedId = buildId;
+		deletingSavedId = null;
+		showTab("saved");
+		window.scrollTo({ top: 0, behavior: "smooth" });
+	}
+
+	function formatSavedDate(iso) {
+		const date = new Date(iso);
+		return isNaN(date) ? "" : date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+	}
+
+	// "Saved 20 Oct 2026 · crit chance 42% · damage +64%": enough to compare builds at a glance.
+	function savedSummary(build) {
+		const parts = ["Saved " + formatSavedDate(build.savedAt)];
+		for (const n of build.view.numbers) {
+			if (n.label !== "Attack") {
+				parts.push(n.label.toLowerCase() + " " + n.value);
+			}
+		}
+		return parts.join(" · ");
+	}
+
+	function renderSaved() {
+		updateSavedTab();
+		const list = document.getElementById("saved-list");
+		list.replaceChildren();
+		if (!savedBuilds.length) {
+			list.appendChild(el("p", { class: "muted" }, [
+				"No saved builds yet. Make a build and tap ",
+				el("b", { text: "☆ Save this build" }),
+				".",
+			]));
+			return;
+		}
+		for (const build of savedBuilds) {
+			list.appendChild(savedCard(build));
+		}
+	}
+
+	function savedCard(build) {
+		const open = openSavedId === build.id;
+		const nameField = el("input", {
+			type: "text", class: "saved-name", id: "name-" + build.id, maxlength: "60",
+			value: build.name, "aria-label": "Build name",
+			onchange: () => {
+				build.name = nameField.value.trim().slice(0, 60) || autoName();
+				nameField.value = build.name;
+				storeSaved();
+			},
+		});
+
+		const actions = deletingSavedId === build.id
+			? [
+				el("span", { class: "small", text: "Delete for good?" }),
+				el("button", {
+					type: "button", class: "btn small danger", text: "Yes, delete",
+					onclick: () => {
+						savedBuilds = savedBuilds.filter((b) => b.id !== build.id);
+						storeSaved();
+						deletingSavedId = null;
+						renderSaved();
+					},
+				}),
+				el("button", {
+					type: "button", class: "btn small", text: "Keep it",
+					onclick: () => {
+						deletingSavedId = null;
+						renderSaved();
+					},
+				}),
+			]
+			: [
+				el("button", {
+					type: "button", class: "btn small" + (open ? "" : " primary"), text: open ? "Hide" : "Show",
+					"aria-expanded": open ? "true" : "false",
+					onclick: () => {
+						openSavedId = open ? null : build.id;
+						renderSaved();
+					},
+				}),
+				el("button", { type: "button", class: "btn small", text: "Open in builder", onclick: () => openInBuilder(build) }),
+				el("button", {
+					type: "button", class: "btn small", text: "Delete",
+					onclick: () => {
+						deletingSavedId = build.id;
+						renderSaved();
+					},
+				}),
+			];
+
+		return el("article", { class: "saved-card" + (open ? " open" : "") }, [
+			nameField,
+			el("span", { class: "muted small", text: savedSummary(build) }),
+			el("div", { class: "row" }, actions),
+			open
+				? el("div", { class: "build" }, [
+					renderNumbers(build.view.numbers),
+					el("p", { class: "situation-line" }, ["Numbers for: ", el("b", { text: build.view.situations })]),
+					...renderLists(build.view, build.id + "-"),
+				])
+				: null,
+		]);
+	}
+
+	// Puts the saved build's skills back in step 1. The forge then searches with the
+	// gear you have now, so the result can differ a little from the saved one.
+	function openInBuilder(build) {
+		state.targets = build.targets.filter((t) => index.skillById.has(t.skillId));
+		for (const target of state.targets) {
+			switchOnSituationFor(index.skillById.get(target.skillId));
+		}
+		state.openInfo = null;
+		showTab("build");
+		changed();
+		window.scrollTo({ top: 0, behavior: "smooth" });
 	}
 
 	// ---------- More details (closed until asked for) ----------
@@ -1474,7 +1731,11 @@
 			button.setAttribute("aria-selected", button.dataset.tab === tab ? "true" : "false");
 		}
 		document.getElementById("view-build").hidden = tab !== "build";
+		document.getElementById("view-saved").hidden = tab !== "saved";
 		document.getElementById("view-popular").hidden = tab !== "popular";
+		if (tab === "saved") {
+			renderSaved();
+		}
 	}
 
 	for (const button of document.querySelectorAll(".tab")) {
@@ -1502,6 +1763,7 @@
 		"Game data from the mhdb project, updated " + formatDate(data.version) + ". It includes the final big update (February 2026).";
 
 	showTab(state.tab);
+	updateSavedTab();
 	renderPopular();
 	renderWishes();
 	renderQuickPicks();

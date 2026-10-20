@@ -115,6 +115,11 @@
 	}
 	.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--brass); }
 	.tab:hover { color: var(--fg); }
+	/* On a phone the three tabs fit on one line with shorter words and less padding. */
+	@media (max-width: 480px) {
+		.tab { padding: 10px 9px; font-size: 0.95rem; }
+		.wide-only { display: none; }
+	}
 
 	button { font-family: var(--font-body); }
 	button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible {
@@ -351,6 +356,23 @@
 	details.more summary { cursor: pointer; color: var(--brass); font-weight: 500; font-size: 0.92rem; }
 	details.more[open] summary { margin-bottom: 8px; }
 	.online-box { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+	.saved-line { font-size: 0.95rem; color: var(--good); }
+	.saved-line b { color: var(--fg); }
+
+	/* ---------- My builds ---------- */
+	.saved-page { display: grid; gap: 14px; max-width: 760px; }
+	.saved-list { display: grid; gap: 12px; }
+	.saved-card {
+		background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+		padding: 14px 16px; display: grid; gap: 8px; min-width: 0;
+	}
+	.saved-card.open { border-color: var(--brass); }
+	.saved-name {
+		font: 400 1.2rem var(--font-display); color: var(--fg); background: transparent;
+		border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; margin-left: -7px; width: 100%; min-width: 0;
+	}
+	.saved-name:hover, .saved-name:focus { border-color: var(--line); background: var(--panel-2); }
+	.btn.danger { background: var(--warn); border-color: var(--warn); color: var(--on-brass); }
 
 	/* Weapon affinity field */
 	.number-field { display: inline-flex; align-items: center; gap: 4px; }
@@ -415,7 +437,8 @@
 
 	<nav class="tabs" role="tablist">
 		<button class="tab" id="tab-build" role="tab" aria-selected="true" data-tab="build">Make a build</button>
-		<button class="tab" id="tab-popular" role="tab" aria-selected="false" data-tab="popular">Ready-made builds</button>
+		<button class="tab" id="tab-saved" role="tab" aria-selected="false" data-tab="saved">My builds</button>
+		<button class="tab" id="tab-popular" role="tab" aria-selected="false" data-tab="popular">Ready-made<span class="wide-only"> builds</span></button>
 	</nav>
 
 	<main id="view-build" class="build-grid">
@@ -498,6 +521,13 @@
 		</section>
 	</main>
 
+	<main id="view-saved" hidden>
+		<div class="saved-page">
+			<p class="muted">Builds you saved. They stay in this browser on this device.</p>
+			<div id="saved-list" class="saved-list"></div>
+		</div>
+	</main>
+
 	<main id="view-popular" hidden>
 		<div style="display:grid; gap:14px">
 			<p class="muted" id="popular-intro"></p>
@@ -514,9 +544,9 @@
 
 <!-- The ?v= number makes browsers fetch fresh scripts after an update instead of mixing
      a new page with old saved scripts. Raise it with every release (same as the git version). -->
-<script src="data.js?v=1.4.2"></script>
-<script src="effects.js?v=1.4.2"></script>
-<script src="solver.js?v=1.4.2"></script>
-<script src="stats.js?v=1.4.2"></script>
-<script src="builds.js?v=1.4.2"></script>
-<script src="app.js?v=1.4.2"></script>
+<script src="data.js?v=1.5.0"></script>
+<script src="effects.js?v=1.5.0"></script>
+<script src="solver.js?v=1.5.0"></script>
+<script src="stats.js?v=1.5.0"></script>
+<script src="builds.js?v=1.5.0"></script>
+<script src="app.js?v=1.5.0"></script>

@@ -9,6 +9,10 @@ Builds show one at a time (‹ › to flip) as two to-do lists, "Wear these" and
 "Put in these jewels", with boxes to tick off while you set it up in the game.
 Your weapon and charm sit in a closed "My gear" section.
 
+"☆ Save this build" stores a snapshot of the build in the browser (localStorage, like
+cookies: this device only). The "My builds" tab lists them: rename, show, open the
+skills in the builder again, or delete. A saved build always looks as it did when saved.
+
 Each set shows its damage numbers (affinity, crit damage, attack, a raw damage
 estimate) for the fight situations you switch on, such as "Monster is enraged".
 It also picks smart jewels for the free slots: the ones that add the most damage
