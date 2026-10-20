@@ -129,6 +129,11 @@
 			state.weaponAffinity = Number(saved.weaponAffinity) || 0;
 			if (Array.isArray(saved.situations)) {
 				state.situations = saved.situations.filter((id) => SITUATION_LABEL[id]);
+			} else {
+				// Saved by version 1.0, before situations existed: switch on what the wished skills need.
+				for (const target of state.targets) {
+					switchOnSituationFor(index.skillById.get(target.skillId));
+				}
 			}
 		} else {
 			// First visit: start with the example from the original idea.
