@@ -78,6 +78,19 @@ Checks every number in `effects.js` against the game's own skill text (run it af
 
 To look at the page on this PC, open `index.html` in a browser.
 
+## Updating the ready-made builds
+
+The "Ready-made builds" tab shows the day the list was last checked, with links to the
+sources. When the list is old, ask Claude: **"update the ready-made builds"**. The steps:
+
+1. Read the pages listed under `sources` in `builds.js`.
+2. Change the entries in `builds.js` to match them (one build per weapon).
+3. Set `checked` in `builds.js` to today's date.
+4. Run `node tools/test-solver.js`: every build must still find sets.
+5. Commit, push, and bump the `?v=` number in `index.html`.
+
+The page warns by itself when the list is over 45 days old.
+
 ## Known limits
 
 - Weapon skills are filled with weapon jewels only. Skills already built into a weapon are not counted.

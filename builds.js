@@ -1,18 +1,25 @@
-// Popular builds: what players are running right now, one per weapon.
-// Taken from Game8's "best build for each weapon" list (checked October 2026).
-// Only the skill goals are stored here. Pressing "Use these skills" on the page
+// Ready-made builds: what players are running right now, one per weapon.
+// Taken from Game8's "best build for each weapon" list.
+// Only the skill goals are stored here. Pressing "Use this build" on the page
 // hands them to the set finder, which works out the armor itself.
+//
+// HOW TO UPDATE (just ask Claude: "update the ready-made builds"):
+//   1. Read the pages under "sources" below.
+//   2. Change the entries to match them.
+//   3. Set "checked" to today's date.
+//   4. Run: node tools/test-solver.js   (every build must still find sets)
+// The page shows the "checked" date, so everyone can see how fresh the list is.
 //
 // To add a build: copy one entry and change it. Skill names must match the game
 // exactly (the page warns about any it cannot find). For set bonuses and group
 // skills, the number is the bonus step: 1 = the 2-piece bonus, 2 = the 4-piece bonus.
 
 window.WILDS_POPULAR = {
-	checked: "October 2026",
+	checked: "2026-10-20", // the day the sources were last read, as YYYY-MM-DD
 	sources: [
-		{ name: "Game8: best builds for each weapon", url: "https://game8.co/games/Monster-Hunter-Wilds/archives/500759" },
-		{ name: "MH Wilds Best Builds", url: "https://www.mhwildsbuild.com/builds" },
-		{ name: "Mobalytics community builds", url: "https://mobalytics.gg/mhw/community-builds" },
+		{ name: "Game8: best builds for each weapon", short: "Game8", url: "https://game8.co/games/Monster-Hunter-Wilds/archives/500759" },
+		{ name: "MH Wilds Best Builds", short: "MH Wilds Best Builds", url: "https://www.mhwildsbuild.com/builds" },
+		{ name: "Mobalytics community builds", short: "Mobalytics", url: "https://mobalytics.gg/mhw/community-builds" },
 	],
 	builds: [
 		{

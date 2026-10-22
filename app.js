@@ -1927,9 +1927,52 @@
 
 	// ---------- Popular builds tab ----------
 
+	// Whole days since a YYYY-MM-DD date (0 = today). Noon avoids time zone surprises.
+	function daysSince(isoDate) {
+		const then = new Date(isoDate + "T12:00:00");
+		return isNaN(then) ? null : Math.floor((Date.now() - then.getTime()) / 86400000);
+	}
+
+	function agoText(days) {
+		if (days <= 0) {
+			return "today";
+		}
+		if (days === 1) {
+			return "yesterday";
+		}
+		return days <= 30 ? days + " days ago" : Math.round(days / 30) + " months ago";
+	}
+
+	// The "Checked ..." box: when the builds were last read from the sources, and where to
+	// look for newer ones. Over STALE_AFTER_DAYS old it says so, since builds change with game updates.
+	const STALE_AFTER_DAYS = 45;
+
+	function renderFreshness() {
+		const box = document.getElementById("popular-fresh");
+		const days = daysSince(popular.checked);
+		const old = days !== null && days > STALE_AFTER_DAYS;
+		box.className = "fresh" + (old ? " old" : "");
+		// replaceChildren would write a missing item as the word "null", so only pass what exists.
+		box.replaceChildren(...[
+			el("p", { class: "fresh-date" }, [
+				"Checked ", el("b", { text: formatDate(popular.checked) }),
+				days === null ? "" : " · " + agoText(days),
+			]),
+			old ? el("p", { class: "fresh-warn", text: "This is over a month old. Newer builds may exist: check the sources, or ask for an update." }) : null,
+			el("div", { class: "fresh-links" }, [
+				el("span", { class: "muted small", text: "Check for newer builds:" }),
+				...popular.sources.map((source) => el("a", {
+					class: "btn small", href: source.url, target: "_blank", rel: "noopener",
+					title: source.name, text: (source.short || source.name) + " ↗",
+				})),
+			]),
+		].filter(Boolean));
+	}
+
 	function renderPopular() {
 		document.getElementById("popular-intro").textContent =
-			"Top builds for each weapon (checked " + popular.checked + "). Tap one and the forge works out the armor.";
+			"Top builds for each weapon. Tap one and the forge works out the armor.";
+		renderFreshness();
 
 		const grid = document.getElementById("popular-grid");
 		grid.replaceChildren();
@@ -1954,7 +1997,7 @@
 						state.targets = known.map((s) => ({ skillId: s.skill.id, level: Math.min(s.level, Solver.maxLevel(s.skill)) }));
 						known.forEach((s) => switchOnSituationFor(s.skill));
 						state.openInfo = null;
-										showTab("build");
+						showTab("build");
 						changed();
 						// On a phone the sets are far below the wish list, so go straight to them.
 						const narrow = window.matchMedia("(max-width: 959px)").matches;
@@ -1964,15 +2007,6 @@
 				})),
 			]));
 		}
-
-		const sources = document.getElementById("popular-sources");
-		sources.replaceChildren("Sources: ");
-		popular.sources.forEach((source, i) => {
-			if (i > 0) {
-				sources.appendChild(document.createTextNode(" · "));
-			}
-			sources.appendChild(el("a", { href: source.url, target: "_blank", rel: "noopener", text: source.name }));
-		});
 	}
 
 	// ---------- Tabs ----------

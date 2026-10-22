@@ -281,6 +281,18 @@ check("jewel fit: too many jewels fails", Solver.fitJewels([1, 1, 1], [3, 3]) ==
 		fistLoose.results.some((r) => r.pieces.filter((p) => p.set === "Akuma α").length === 3));
 }
 
+// --- The ready-made builds list says how fresh it is ---
+{
+	const real = /^\d{4}-\d{2}-\d{2}$/.test(popular.checked) && !isNaN(new Date(popular.checked + "T12:00:00"));
+	check("ready-made builds: 'checked' is a real date (YYYY-MM-DD)", real, popular.checked);
+	check("ready-made builds: 'checked' is not in the future", new Date(popular.checked + "T12:00:00") <= new Date(), popular.checked);
+	const badSources = popular.sources.filter((s) => !s.name || !s.short || !/^https:\/\//.test(s.url));
+	check("ready-made builds: every source has a name, a short name and a https link", popular.sources.length > 0 && badSources.length === 0,
+		badSources.map((s) => s.name).join(", "));
+	const weapons = new Set(popular.builds.map((b) => b.weapon));
+	check("ready-made builds: no weapon listed twice by mistake", weapons.size === popular.builds.length, popular.builds.length + " builds");
+}
+
 // --- Every popular build: names must exist, and the finder should cope ---
 for (const build of popular.builds) {
 	const unknown = build.skills.filter(([name]) => skillId(name) === null).map(([name]) => name);

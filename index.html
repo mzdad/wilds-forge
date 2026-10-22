@@ -433,7 +433,16 @@
 	.lines li.off { opacity: 0.55; }
 	.online { display: flex; flex-wrap: wrap; gap: 8px; }
 
-	/* ---------- Popular tab ---------- */
+	/* ---------- Ready-made builds tab ---------- */
+	/* "Checked 20 October 2026 · 2 days ago" with links to the sources */
+	.fresh {
+		display: grid; gap: 8px; background: var(--panel); border: 1px solid var(--line);
+		border-radius: var(--radius); padding: 12px 14px; max-width: 760px;
+	}
+	.fresh.old { border-color: var(--warn); }
+	.fresh-date b { font-weight: 600; }
+	.fresh-warn { color: var(--warn); font-size: 0.92rem; }
+	.fresh-links { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 	.popular-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
 	.pop {
 		background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
@@ -556,8 +565,8 @@
 	<main id="view-popular" hidden>
 		<div style="display:grid; gap:14px">
 			<p class="muted" id="popular-intro"></p>
+			<div class="fresh" id="popular-fresh"></div>
 			<div class="popular-grid" id="popular-grid"></div>
-			<p class="muted" id="popular-sources"></p>
 		</div>
 	</main>
 
@@ -569,10 +578,10 @@
 
 <!-- The ?v= number makes browsers fetch fresh scripts after an update instead of mixing
      a new page with old saved scripts. Raise it with every release (same as the git version). -->
-<script src="data.js?v=1.6.1"></script>
-<script src="effects.js?v=1.6.1"></script>
-<script src="share.js?v=1.6.1"></script>
-<script src="solver.js?v=1.6.1"></script>
-<script src="stats.js?v=1.6.1"></script>
-<script src="builds.js?v=1.6.1"></script>
-<script src="app.js?v=1.6.1"></script>
+<script src="data.js?v=1.6.2"></script>
+<script src="effects.js?v=1.6.2"></script>
+<script src="share.js?v=1.6.2"></script>
+<script src="solver.js?v=1.6.2"></script>
+<script src="stats.js?v=1.6.2"></script>
+<script src="builds.js?v=1.6.2"></script>
+<script src="app.js?v=1.6.2"></script>
