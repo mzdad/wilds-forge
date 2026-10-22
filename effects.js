@@ -42,6 +42,10 @@ window.WILDS_EFFECTS = {
 		{ id: "jumping", short: "jump attacks", label: "Jumping attacks" },
 	],
 
+	// Armor sets the game only lets you wear whole: equipping one piece puts on all five.
+	// The forge never mixes their pieces with other armor. Names as in the game data.
+	wholeSetOnly: ["Akuma α"],
+
 	// Situations switched on for a first visit. Most fights have both.
 	defaultSituations: ["weak", "enraged"],
 

@@ -526,12 +526,14 @@
 			const isCount = Solver.isPieceCountSkill(skill);
 			const listItems = pieces.slice(0, ARMOR_PIECES_SHOWN).map((entry) => el("li", {}, el("span", { class: "row" }, [
 				entry.piece.name,
-				el("span", { class: "muted", text: "· " + PIECE_LABEL[entry.piece.kind] + (isCount ? "" : " · level " + entry.level) }),
+				el("span", { class: "muted", text: "· " + PIECE_LABEL[entry.piece.kind] + (isCount ? "" : " · level " + entry.level) +
+					(effects.wholeSetOnly.includes(entry.piece.set) ? " · whole " + entry.piece.set + " set only" : "") }),
 				slotBadges(entry.piece.slots),
 			])));
 			parts.push(el("ul", {}, listItems));
 			if (pieces.length > ARMOR_PIECES_SHOWN) {
-				const rest = pieces.slice(ARMOR_PIECES_SHOWN).map((entry) => entry.piece.name + (isCount ? "" : " (" + entry.level + ")"));
+				const rest = pieces.slice(ARMOR_PIECES_SHOWN).map((entry) => entry.piece.name + (isCount ? "" : " (" + entry.level + ")") +
+					(effects.wholeSetOnly.includes(entry.piece.set) ? " [whole set only]" : ""));
 				parts.push(el("details", { class: "more" }, [
 					el("summary", { text: "Show " + rest.length + " more" }),
 					el("p", { class: "muted", text: rest.join(", ") }),
@@ -891,6 +893,7 @@
 			gogmaWeapon: state.gogmaWeapon,
 			gogmaSet: state.gogma.setId,
 			gogmaGroup: state.gogma.groupId,
+			wholeSets: effects.wholeSetOnly,
 			customCharms: state.myCharms.map(toSolverCharm),
 			onlyCharm: around ? around.id : null,
 		});
@@ -1221,7 +1224,9 @@
 			rows.push({ key: "weapon", label: "Weapon", name: "Any weapon with these slots", extra: "", armorSlots: [], weaponSlots: weaponSlotsNow().slice() });
 		}
 		for (const piece of result.pieces) {
-			rows.push({ key: "piece-" + piece.id, label: PIECE_LABEL[piece.kind], name: piece.name, extra: "", armorSlots: piece.slots.slice(), weaponSlots: [] });
+			// The game wears the whole set at once, so say so on every piece of it.
+			const whole = effects.wholeSetOnly.includes(piece.set) ? piece.set + " set, always worn as a whole" : "";
+			rows.push({ key: "piece-" + piece.id, label: PIECE_LABEL[piece.kind], name: piece.name, extra: whole, armorSlots: piece.slots.slice(), weaponSlots: [] });
 		}
 		const charm = result.charm;
 		rows.push(charm

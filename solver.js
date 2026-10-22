@@ -413,28 +413,49 @@
 			return weaponByCharm.get(key);
 		}
 
-		// Options per armor slot.
+		// Sets that must be worn whole (like the Akuma α collab armor: the game puts on every
+		// piece of the set together). Their pieces are never mixed with other armor.
+		const wholeSets = new Set(request.wholeSets || []);
+
+		function makeOption(piece) {
+			return {
+				id: piece.id,
+				piece: piece,
+				gives: contributionOf(piece.skills, armorGoals, pieceGoals),
+				slots: slotProfile(piece.slots),
+				defense: piece.defense,
+			};
+		}
+
+		function usable(piece) {
+			return piece.rank === "high" || !!request.includeLowRank;
+		}
+
+		// Options per armor slot. Whole-set pieces are left out here, before any piece is
+		// ruled out for being worse than another, so a whole-set piece can never push a
+		// normal piece out of the running.
 		const optionsByKind = ARMOR_KINDS.map((kind) => {
 			const options = [];
 			for (const piece of index.data.armor) {
-				if (piece.kind !== kind) {
+				if (piece.kind !== kind || !usable(piece) || wholeSets.has(piece.set)) {
 					continue;
 				}
-				if (piece.rank !== "high" && !request.includeLowRank) {
-					continue;
-				}
-				options.push({
-					id: piece.id,
-					piece: piece,
-					gives: contributionOf(piece.skills, armorGoals, pieceGoals),
-					slots: slotProfile(piece.slots),
-					defense: piece.defense,
-				});
+				options.push(makeOption(piece));
 			}
 			const kept = removeBeatenOptions(options);
 			kept.sort((a, b) => roughValue(b, goals) - roughValue(a, goals));
 			return kept;
 		});
+
+		// Each whole set becomes one ready-made five-piece choice (if the set has all five pieces).
+		const wholeSetChoices = [];
+		for (const setName of wholeSets) {
+			const pieces = ARMOR_KINDS.map((kind) =>
+				index.data.armor.find((p) => p.set === setName && p.kind === kind && usable(p)));
+			if (pieces.every(Boolean)) {
+				wholeSetChoices.push(pieces.map(makeOption));
+			}
+		}
 
 		// Crafted charm options. Crafted charms only carry armor skills and have no slots.
 		let charmOptions = [];
@@ -660,6 +681,23 @@
 					return;
 				}
 			}
+		}
+
+		// Whole sets first: there are only a few, and they never depend on the long search.
+		for (const choice of wholeSetChoices) {
+			for (const option of choice) {
+				chosen.push(option);
+				for (let i = 0; i < goals.length; i++) {
+					current[i] += option.gives[i];
+				}
+			}
+			checkFullSet();
+			for (const option of choice) {
+				for (let i = 0; i < goals.length; i++) {
+					current[i] -= option.gives[i];
+				}
+			}
+			chosen.length = 0;
 		}
 
 		search(0);

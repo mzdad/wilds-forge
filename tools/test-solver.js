@@ -11,11 +11,12 @@ const Solver = require("../solver.js");
 // so run them with a pretend window.
 const sandbox = { window: {} };
 vm.createContext(sandbox);
-for (const file of ["data.js", "builds.js"]) {
+for (const file of ["data.js", "effects.js", "builds.js"]) {
 	vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), sandbox);
 }
 const data = sandbox.window.WILDS_DATA;
 const popular = sandbox.window.WILDS_POPULAR;
+const effects = sandbox.window.WILDS_EFFECTS;
 const index = Solver.makeIndex(data);
 
 let failures = 0;
@@ -233,6 +234,51 @@ check("jewel fit: too many jewels fails", Solver.fitJewels([1, 1, 1], [3, 3]) ==
 	});
 	check("Gogma weapon left on 'any': results stay correct",
 		flexible.results.length > 0 && resultReachesGoals(flexible, [{ skillId: skillId("Gogmapocalypse"), level: 2 }]) === "");
+}
+
+// --- Whole-set armor (Akuma α: the game puts on all five pieces together) ---
+{
+	const WHOLE = effects.wholeSetOnly;
+	const akuma = data.armor.filter((a) => a.set === "Akuma α");
+	const partial = (answer) => answer.results.filter((r) => {
+		const n = r.pieces.filter((p) => WHOLE.includes(p.set)).length;
+		return n > 0 && n < 5;
+	});
+	const myCharm = {
+		id: "mine-whole", name: "attak/blessing", rarity: 8, custom: true,
+		skills: [[skillId("Attack Boost"), 3], [skillId("Divine Blessing"), 3]], armorSlots: [1, 1], weaponSlots: [1],
+	};
+	const wishes = [
+		[[{ skillId: skillId("Heroics"), level: 5 }], "Heroics 5"],
+		[[{ skillId: skillId("Heroics"), level: 5 }, { skillId: skillId("Weakness Exploit"), level: 5 }, { skillId: skillId("Agitator"), level: 5 }], "Heroics + WEX + Agitator"],
+	];
+
+	check("the Akuma α set has all five pieces in the data", akuma.length === 5 && new Set(akuma.map((a) => a.kind)).size === 5);
+	check("effects.js names real sets", WHOLE.every((name) => data.armor.some((a) => a.set === name)));
+
+	// The bug that was reported: one Demon Garb α mixed in with other armor.
+	for (const [targets, label] of wishes) {
+		const before = Solver.findSets(index, { targets: targets, weaponSlots: [3, 3, 3], gogmaWeapon: true, customCharms: [myCharm], onlyCharm: myCharm.id });
+		const after = Solver.findSets(index, { targets: targets, weaponSlots: [3, 3, 3], gogmaWeapon: true, customCharms: [myCharm], onlyCharm: myCharm.id, wholeSets: WHOLE });
+		check(label + ": without the rule a lone Akuma piece shows up (this was the bug)", partial(before).length > 0, partial(before).length + " of " + before.results.length);
+		check(label + ": with the rule, never a partial Akuma set", partial(after).length === 0 && after.results.length > 0, after.results.length + " sets");
+		check(label + ": the rule keeps the sets correct", resultReachesGoals(after, targets) === "");
+	}
+
+	// Wishing for the Akuma group skill: the only answer is all five pieces, never three.
+	const fist = [{ skillId: skillId("Master of the Fist"), level: 1 }];
+	const fistAnswer = Solver.findSets(index, { targets: fist, weaponSlots: [3, 3, 3], gogmaWeapon: false, wholeSets: WHOLE });
+	check("Master of the Fist (needs 3 Akuma pieces): the full 5-piece set is offered",
+		fistAnswer.results.length === 1 && fistAnswer.results[0].pieces.every((p) => p.set === "Akuma α"),
+		fistAnswer.results.map((r) => r.pieces.map((p) => p.name).join("/")).join(" | "));
+	check("...and it lists all five pieces in head to legs order",
+		fistAnswer.results[0] && fistAnswer.results[0].pieces.map((p) => p.kind).join(",") === "head,chest,arms,waist,legs");
+	const fistTotals = fistAnswer.results[0] ? Solver.totalSkills(index, fistAnswer.results[0]) : [];
+	check("...with Heroics 3 from the Demon Garb counted", levelOf(fistTotals, "Heroics") === 3, String(levelOf(fistTotals, "Heroics")));
+	// Without the rule, three Akuma pieces plus others were offered, which the game does not allow.
+	const fistLoose = Solver.findSets(index, { targets: fist, weaponSlots: [3, 3, 3], gogmaWeapon: false });
+	check("without the rule, Master of the Fist could be reached with just 3 Akuma pieces (not possible in the game)",
+		fistLoose.results.some((r) => r.pieces.filter((p) => p.set === "Akuma α").length === 3));
 }
 
 // --- Every popular build: names must exist, and the finder should cope ---
