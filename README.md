@@ -59,6 +59,9 @@ node tools/update-data.js
 ```
 
 Gets the newest game data from [mhdb](https://docs.wilds.mhdb.io) (after a game update).
+It also checks for armor that can only be worn as a whole set, like Akuma α, and tells you
+if a new one shows up (add its name to `wholeSetOnly` in `effects.js`). Add `--check` to
+only look, without changing `data.js`.
 
 ```bash
 node tools/test-solver.js

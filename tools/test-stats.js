@@ -69,6 +69,26 @@ for (const id of effects.defaultSituations.concat(effects.alwaysShown)) {
 const badExcludes = effects.situations.flatMap((s) => (s.excludes || []).filter((id) => !situationIds.has(id)).map((id) => s.id + " -> " + id));
 check("every 'excludes' names a real situation", badExcludes.length === 0, badExcludes.join(", "));
 
+// --- The updater's whole-set check (finds sets with an Akuma-style recipe) ---
+{
+	const { findWholeSetCandidates } = require("./update-data.js");
+	const mats = [{ item: { name: "Scale" }, quantity: 1 }];
+	const piece = (set, withMaterials) => ({ armorSet: { name: set }, crafting: { materials: withMaterials ? mats : [] } });
+	const fake = [
+		// One recipe for the whole set: only the first piece lists materials.
+		piece("New Collab α", true), piece("New Collab α", false), piece("New Collab α", false), piece("New Collab α", false), piece("New Collab α", false),
+		// A normal set: every piece has its own recipe.
+		piece("Normal α", true), piece("Normal α", true), piece("Normal α", true), piece("Normal α", true), piece("Normal α", true),
+		// A free starter set: no piece lists materials.
+		piece("Starter", false), piece("Starter", false), piece("Starter", false),
+		// A single accessory.
+		piece("Glasses α", true),
+	];
+	const found = findWholeSetCandidates(fake);
+	check("the updater flags a set with one recipe for all pieces", found.includes("New Collab α"), found.join(", "));
+	check("...and leaves normal sets, free starter sets and single accessories alone", found.length === 1, found.join(", "));
+}
+
 // --- Adding up ---
 {
 	const levels = levelsOf([["Critical Eye", 5], ["Weakness Exploit", 5], ["Agitator", 5], ["Critical Boost", 5]]);
